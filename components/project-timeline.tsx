@@ -1,80 +1,55 @@
 // components/project-timeline.tsx
-import Link from "next/link"
-import { ArrowRight } from "lucide-react"
+"use client"
 
-interface Project {
+import { useRouter } from "next/navigation"
+
+export interface ProjectRow {
+  id: string
   name: string
-  description: string
-  role: "Lead Engineer" | "Contributor"
-  status: "Active" | "Completed"
-  techTags: string[]
-  progress: {
-    done: number
-    total: number
-  }
-  actionLabel: string
-  actionHref: string
-}
-
-const projects: Project[] = [
-  {
-    name: "RateMaster",
-    description: "Distributed Rate Limiting Service",
-    role: "Lead Engineer",
-    status: "Active",
-    techTags: ["Node.js", "Redis", "Docker"],
-    progress: { done: 3, total: 6 },
-    actionLabel: "Open workspace",
-    actionHref: "/workspace/ratemaster",
-  },
-  {
-    name: "FlowQueue",
-    description: "Visual Job Queue Manager",
-    role: "Contributor",
-    status: "Completed",
-    techTags: ["Node.js", "BullMQ", "React"],
-    progress: { done: 6, total: 6 },
-    actionLabel: "View project",
-    actionHref: "/projects/flowqueue",
-  },
-  {
-    name: "DevMetrics",
-    description: "Engineering Activity Dashboard",
-    role: "Contributor",
-    status: "Active",
-    techTags: ["TypeScript", "Next.js", "GitHub API"],
-    progress: { done: 2, total: 8 },
-    actionLabel: "Open workspace",
-    actionHref: "/workspace/devmetrics",
-  },
-]
-
-const roleStyles = {
-  "Lead Engineer": "bg-[#ede9fe] text-[#6d28d9]",
-  Contributor: "bg-[#dbeafe] text-[#1d4ed8]",
-}
-
-const statusStyles = {
-  Active: "bg-[#dcfce7] text-[#15803d]",
-  Completed: "bg-[#dcfce7] text-[#15803d]",
-}
-
-const techTagColors: Record<string, string> = {
-  "Node.js": "bg-[#dbeafe] text-[#1d4ed8]",
-  Redis: "bg-[#ede9fe] text-[#6d28d9]",
-  Docker: "bg-[#dbeafe] text-[#1d4ed8]",
-  BullMQ: "bg-[#ede9fe] text-[#6d28d9]",
-  React: "bg-[#dbeafe] text-[#1d4ed8]",
-  TypeScript: "bg-[#dbeafe] text-[#1d4ed8]",
-  "Next.js": "bg-[#f1f5f9] text-[#475569]",
-  "GitHub API": "bg-[#f1f5f9] text-[#475569]",
+  status: string
+  feature_total: number
+  feature_done: number
+  role: "lead" | "contributor"
 }
 
 interface ProjectTimelineProps {
+  projects?: ProjectRow[]
   hideHeader?: boolean
 }
 
-export function ProjectTimeline({ hideHeader = false }: ProjectTimelineProps) {
+const roleStyles = {
+  lead: "bg-[#ede9fe] text-[#6d28d9]",
+  contributor: "bg-[#e2e8f0] text-[#475569]",
+}
+
+const roleLabels = {
+  lead: "Lead",
+  contributor: "Contributor",
+}
+
+function getStatusStyle(status: string) {
+  switch (status) {
+    case "active":
+      return "bg-[#dcfce7] text-[#15803d]"
+    case "completed":
+      return "bg-[#dbeafe] text-[#1d4ed8]"
+    case "archived":
+      return "bg-[#f1f5f9] text-[#64748b]"
+    default:
+      return "bg-[#f1f5f9] text-[#64748b]"
+  }
+}
+
+function getStatusLabel(status: string) {
+  return status.charAt(0).toUpperCase() + status.slice(1)
+}
+
+export function ProjectTimeline({
+  projects = [],
+  hideHeader = false,
+}: ProjectTimelineProps) {
+  const router = useRouter()
+
   return (
     <div className="space-y-4">
       {!hideHeader && (
@@ -86,70 +61,64 @@ export function ProjectTimeline({ hideHeader = false }: ProjectTimelineProps) {
         </div>
       )}
 
-      <div className="space-y-4">
-        {projects.map((project) => (
-          <div
-            key={project.name}
-            className="rounded-xl border border-[#e2e8f0] bg-white p-5 transition-shadow hover:shadow-md"
-          >
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-              <div className="space-y-3">
-                <div>
-                  <h4 className="text-base font-semibold text-[#0f172a]">
-                    {project.name} — {project.description}
-                  </h4>
-                  <div className="mt-2 flex flex-wrap items-center gap-2">
-                    <span
-                      className={`rounded-md px-2 py-0.5 text-xs font-medium ${roleStyles[project.role]}`}
-                    >
-                      {project.role}
-                    </span>
-                    <span
-                      className={`rounded-md px-2 py-0.5 text-xs font-medium ${statusStyles[project.status]}`}
-                    >
-                      {project.status}
-                    </span>
-                  </div>
-                </div>
+      {projects.length === 0 ? (
+        <p className="py-6 text-center text-sm text-[#64748b]">
+          No projects yet — find a problem to get started
+        </p>
+      ) : (
+        <div className="space-y-3">
+          {projects.map((project) => {
+            const pct =
+              project.feature_total > 0
+                ? Math.round((project.feature_done / project.feature_total) * 100)
+                : 0
 
-                <div className="flex flex-wrap gap-1.5">
-                  {project.techTags.map((tag) => (
-                    <span
-                      key={tag}
-                      className={`rounded-md px-2 py-0.5 text-xs font-medium ${techTagColors[tag] || "bg-[#f1f5f9] text-[#475569]"}`}
-                    >
-                      {tag}
-                    </span>
-                  ))}
-                </div>
-
-                <div className="space-y-1.5">
-                  <p className="text-xs text-[#64748b]">
-                    {project.progress.done} of {project.progress.total} features
-                    done
-                  </p>
-                  <div className="h-1.5 w-full max-w-[200px] overflow-hidden rounded-full bg-[#ede9fe]">
-                    <div
-                      className="h-full rounded-full bg-[#7c3aed] transition-all"
-                      style={{
-                        width: `${(project.progress.done / project.progress.total) * 100}%`,
-                      }}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <Link
-                href={project.actionHref}
-                className="inline-flex items-center gap-1 text-sm font-medium text-[#7c3aed] hover:underline"
+            return (
+              <button
+                key={project.id}
+                onClick={() =>
+                  router.push(`/dashboard/workspace/${project.id}`)
+                }
+                className="w-full rounded-xl border border-[#e2e8f0] bg-white p-5 text-left transition-shadow hover:shadow-md focus:outline-none focus:ring-2 focus:ring-[#7c3aed] focus:ring-offset-2"
               >
-                {project.actionLabel}
-                <ArrowRight className="h-4 w-4" />
-              </Link>
-            </div>
-          </div>
-        ))}
-      </div>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  {/* Left: name + badges */}
+                  <div className="space-y-2">
+                    <p className="text-base font-semibold text-[#0f172a]">
+                      {project.name}
+                    </p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span
+                        className={`rounded-md px-2 py-0.5 text-xs font-medium ${roleStyles[project.role]}`}
+                      >
+                        {roleLabels[project.role]}
+                      </span>
+                      <span
+                        className={`rounded-md px-2 py-0.5 text-xs font-medium ${getStatusStyle(project.status)}`}
+                      >
+                        {getStatusLabel(project.status)}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Right: progress bar */}
+                  <div className="min-w-[140px] space-y-1">
+                    <p className="text-xs text-[#64748b]">
+                      {project.feature_done} / {project.feature_total} features done
+                    </p>
+                    <div className="h-1.5 w-full overflow-hidden rounded-full bg-[#ede9fe]">
+                      <div
+                        className="h-full rounded-full bg-[#7c3aed] transition-all"
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </button>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createAdminClient } from '@/lib/supabase/server'
 
 export async function PATCH(
   req: NextRequest,
@@ -14,10 +14,11 @@ export async function PATCH(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { status } = await req.json()
+    const body = await req.json()
+    const { status, assigned_to } = body
     const validStatuses = ['todo', 'in_progress', 'in_review', 'done']
 
-    if (!validStatuses.includes(status)) {
+    if (status && !validStatuses.includes(status)) {
       return NextResponse.json(
         { error: `status must be one of: ${validStatuses.join(', ')}` },
         { status: 400 }
@@ -55,10 +56,22 @@ export async function PATCH(
       )
     }
 
-    // Update the feature status
+    // Build the update payload
+    const updatePayload: Record<string, string> = {}
+    if (status) updatePayload.status = status
+    if (assigned_to) updatePayload.assigned_to = assigned_to
+
+    if (Object.keys(updatePayload).length === 0) {
+      return NextResponse.json(
+        { error: 'Nothing to update. Provide status and/or assigned_to.' },
+        { status: 400 }
+      )
+    }
+
+    // Update the feature
     const { data: updated, error: updateError } = await supabase
       .from('features')
-      .update({ status })
+      .update(updatePayload)
       .eq('id', id)
       .select(`
         id,
@@ -82,14 +95,18 @@ export async function PATCH(
     }
 
     // If status becomes 'done', award 20 points to the assigned user
-    if (status === 'done' && feature.assigned_to) {
-      await supabase.rpc('increment_points', {
-        user_id: feature.assigned_to,
+    if (status === 'done' && (feature.assigned_to || assigned_to)) {
+      const adminClient = createAdminClient()
+      const awardUserId = feature.assigned_to || assigned_to
+      
+      const { error: rpcError } = await adminClient.rpc('increment_points', {
+        user_id: awardUserId,
         amount: 20,
       })
+      if (rpcError) console.error('[features/id] RPC increment_points error:', rpcError)
 
-      await supabase.from('point_events').insert({
-        user_id: feature.assigned_to,
+      const { error: insertError } = await adminClient.from('point_events').insert({
+        user_id: awardUserId,
         event_type: 'feature_completed',
         points: 20,
         metadata: {
@@ -97,6 +114,7 @@ export async function PATCH(
           feature_id: feature.id,
         },
       })
+      if (insertError) console.error('[features/id] point_events insert error:', insertError)
     }
 
     return NextResponse.json(updated)

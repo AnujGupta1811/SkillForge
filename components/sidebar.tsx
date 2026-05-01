@@ -2,6 +2,7 @@
 
 import Link from "next/link"
 import { useRouter, usePathname } from "next/navigation"
+import { useState, useEffect } from "react"
 import {
   Zap,
   FolderOpen,
@@ -45,6 +46,45 @@ function SidebarContent({ activeHref }: SidebarProps) {
   const pathname = usePathname()
   const currentPath = activeHref || pathname
 
+  const [userName, setUserName] = useState<string | null>(null)
+  const [initials, setInitials] = useState<string>("")
+  const [userRole, setUserRole] = useState<string | null>(null)
+
+  useEffect(() => {
+    const fetchUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        const { data: profile } = await supabase
+          .from('users')
+          .select('full_name, email, role')
+          .eq('id', user.id)
+          .single()
+        
+        let nameToDisplay = "User"
+        if (profile?.full_name) {
+          nameToDisplay = profile.full_name
+        } else if (profile?.email) {
+          nameToDisplay = profile.email.split('@')[0]
+        } else if (user.user_metadata?.full_name) {
+          nameToDisplay = user.user_metadata.full_name
+        } else if (user.email) {
+          nameToDisplay = user.email.split('@')[0]
+        }
+
+        setUserName(nameToDisplay)
+        setUserRole(profile?.role || null)
+        
+        const nameParts = nameToDisplay.split(' ')
+        if (nameParts.length >= 2) {
+          setInitials(`${nameParts[0][0]}${nameParts[1][0]}`.toUpperCase())
+        } else {
+          setInitials(nameToDisplay.substring(0, 2).toUpperCase())
+        }
+      }
+    }
+    fetchUser()
+  }, [supabase])
+
   async function handleSignOut() {
     await supabase.auth.signOut()
     router.push('/auth')
@@ -61,7 +101,9 @@ function SidebarContent({ activeHref }: SidebarProps) {
       {/* Navigation */}
       <nav className="flex-1 px-3">
         <ul className="space-y-1">
-          {navItems.map((item) => {
+          {navItems.filter((item) => 
+            item.label !== "Manager view" || userRole === 'manager' || userRole === 'platform_admin'
+          ).map((item) => {
             const isActive = currentPath === item.href
             const Icon = item.icon
             return (
@@ -93,11 +135,11 @@ function SidebarContent({ activeHref }: SidebarProps) {
       <div className="border-t border-slate-200 p-4">
         <div className="flex items-center gap-3">
           <div className="flex h-9 w-9 items-center justify-center rounded-full bg-violet-600 text-sm font-medium text-white">
-            AK
+            {initials || "AK"}
           </div>
           <div className="flex flex-col">
             <span className="text-sm font-medium text-slate-900">
-              Arjun Kapoor
+              {userName || "..."}
             </span>
             <button 
               onClick={handleSignOut}

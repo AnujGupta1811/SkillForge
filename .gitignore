@@ -39,3 +39,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Antigravity test files
+test*.js
+test*.ts
+test_supabase.js
+scratch/

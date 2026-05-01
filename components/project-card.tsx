@@ -20,6 +20,7 @@ const statusStyles: Record<string, string> = {
 
 interface ProjectCardProps {
     project: ProjectListItem
+    currentUserId?: string
     onView: (project: ProjectListItem) => void
 }
 
@@ -41,7 +42,7 @@ function daysAgo(dateStr: string): string {
     return `${diff} days ago`
 }
 
-export function ProjectCard({ project, onView }: ProjectCardProps) {
+export function ProjectCard({ project, currentUserId, onView }: ProjectCardProps) {
     const progressPct =
         project.feature_total > 0
             ? Math.round((project.feature_done / project.feature_total) * 100)
@@ -157,14 +158,16 @@ export function ProjectCard({ project, onView }: ProjectCardProps) {
                         <span className="text-xs text-[#64748b]">No contributors yet</span>
                     )}
                 </div>
-                <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => onView(project)}
-                    className="h-8 border-[#7c3aed] bg-white text-[#7c3aed] hover:bg-[#ede9fe] hover:text-[#7c3aed]"
-                >
-                    Contribute
-                </Button>
+                {currentUserId !== project.creator?.id && (
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => onView(project)}
+                        className="h-8 border-[#7c3aed] bg-white text-[#7c3aed] hover:bg-[#ede9fe] hover:text-[#7c3aed]"
+                    >
+                        Contribute
+                    </Button>
+                )}
             </div>
         </Card>
     )

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createAdminClient } from '@/lib/supabase/server'
 
 export async function PATCH(
   req: NextRequest,
@@ -63,30 +63,60 @@ export async function PATCH(
         return NextResponse.json({ error: updateError.message }, { status: 500 })
       }
 
-      // Assign the feature to the contributor
+      // Assign the feature to the contributor AND set status to in_progress
+      let updatedFeature = null
       if (contribution.feature_id) {
-        await supabase
+        const { data: featureData, error: featureError } = await supabase
           .from('features')
-          .update({ assigned_to: contribution.user_id })
+          .update({
+            assigned_to: contribution.user_id,
+            status: 'in_progress',
+          })
           .eq('id', contribution.feature_id)
+          .select(`
+            id,
+            project_id,
+            title,
+            description,
+            status,
+            assigned_to,
+            created_at,
+            assigned_user:users!features_assigned_to_fkey (
+              id,
+              full_name,
+              avatar_url
+            )
+          `)
+          .single()
+
+        if (featureError) {
+          console.error('[contributions/id] Feature update error:', featureError)
+        } else {
+          updatedFeature = featureData
+        }
       }
 
-      // Award 30 points to the contributor
-      await supabase.rpc('increment_points', {
+      // Award 10 points to the contributor
+      const adminClient = createAdminClient()
+      const { error: rpcError } = await adminClient.rpc('increment_points', {
         user_id: contribution.user_id,
-        amount: 30,
+        amount: 10,
       })
+      if (rpcError) console.error('[contributions/id] RPC increment_points error:', rpcError)
 
       // Log point event
-      await supabase.from('point_events').insert({
+      const { error: insertError } = await adminClient.from('point_events').insert({
         user_id: contribution.user_id,
         event_type: 'contribution_approved',
-        points: 30,
+        points: 10,
         metadata: {
           project_id: contribution.project_id,
           contribution_id: contribution.id,
         },
       })
+      if (insertError) console.error('[contributions/id] point_events insert error:', insertError)
+
+      return NextResponse.json({ success: true, action, feature: updatedFeature })
     } else {
       // Reject: just update status
       const { error: updateError } = await supabase
@@ -98,9 +128,9 @@ export async function PATCH(
         console.error('[contributions/id] Update error:', updateError)
         return NextResponse.json({ error: updateError.message }, { status: 500 })
       }
-    }
 
-    return NextResponse.json({ success: true, action })
+      return NextResponse.json({ success: true, action })
+    }
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Failed to update contribution'
     console.error('[contributions/id] Unhandled error:', message)

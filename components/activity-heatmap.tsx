@@ -8,41 +8,41 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 
-const activityData = [
-  0, 0, 1, 0, 2, 1, 0, 0, 1, 2, 3, 2, 1, 0, 0, 1, 2, 3, 4, 3, 2, 1,
-  1, 2, 3, 2, 1, 0, 0, 1, 1, 2, 2, 1, 0, 0, 1, 2, 3, 3, 2, 1, 0, 0,
-  0, 1, 2, 3, 4, 3, 2, 1, 1, 1, 2, 1, 0, 0, 0, 1, 2, 2, 1, 0, 1, 2,
-  3, 2, 1, 0, 0, 1, 1, 2, 3, 2, 1, 0, 0, 0, 1, 2, 2, 1, 0, 0, 0, 1, 0, 0,
-]
-
-const activityColors: Record<number, string> = {
-  0: "bg-[#f1f5f9]",
-  1: "bg-[#ddd6fe]",
-  2: "bg-[#a78bfa]",
-  3: "bg-[#7c3aed]",
-  4: "bg-[#5b21b6]",
+interface ActivityDay {
+  date: string  // 'YYYY-MM-DD'
+  count: number
 }
 
-const activityLabels: Record<number, string> = {
-  0: "No activity",
-  1: "Low activity",
-  2: "Medium activity",
-  3: "High activity",
-  4: "Max activity",
+interface ActivityHeatmapProps {
+  activity?: ActivityDay[]
 }
 
-export function ActivityHeatmap() {
-  const activeDays = activityData.filter((v) => v > 0).length
+function getColorClass(count: number): string {
+  if (count === 0) return "bg-gray-100"
+  if (count === 1) return "bg-violet-200"
+  if (count <= 3) return "bg-violet-400"
+  return "bg-violet-600"
+}
 
-  // Generate dates for the last 90 days
-  const getDayLabel = (index: number) => {
-    const date = new Date()
-    date.setDate(date.getDate() - (89 - index))
-    return date.toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-    })
-  }
+function formatDate(dateStr: string): string {
+  const [year, month, day] = dateStr.split('-').map(Number)
+  const d = new Date(year, month - 1, day)
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+}
+
+export function ActivityHeatmap({ activity = [] }: ActivityHeatmapProps) {
+  const activeDays = activity.filter((d) => d.count > 0).length
+
+  // Ensure we always show exactly 90 days
+  const days: ActivityDay[] = activity.length === 90
+    ? activity
+    : Array.from({ length: 90 }, (_, i) => {
+        const d = new Date()
+        d.setDate(d.getDate() - (89 - i))
+        const key = d.toISOString().slice(0, 10)
+        const found = activity.find((a) => a.date === key)
+        return found ?? { date: key, count: 0 }
+      })
 
   return (
     <div className="space-y-4">
@@ -53,22 +53,23 @@ export function ActivityHeatmap() {
       <TooltipProvider delayDuration={100}>
         <div className="overflow-x-auto pb-2">
           <div
-            className="grid gap-[2px]"
+            className="grid gap-[3px]"
             style={{
-              gridTemplateColumns: "repeat(13, 10px)",
-              gridTemplateRows: "repeat(7, 10px)",
+              gridTemplateRows: "repeat(7, 12px)",
+              gridTemplateColumns: `repeat(${Math.ceil(90 / 7)}, 12px)`,
+              gridAutoFlow: "column",
             }}
           >
-            {activityData.map((level, index) => (
-              <Tooltip key={index}>
+            {days.map((day) => (
+              <Tooltip key={day.date}>
                 <TooltipTrigger asChild>
                   <div
-                    className={`h-[10px] w-[10px] rounded-[2px] ${activityColors[level]} cursor-pointer transition-transform hover:scale-110`}
+                    className={`h-[12px] w-[12px] rounded-sm ${getColorClass(day.count)} cursor-pointer transition-transform hover:scale-110`}
                   />
                 </TooltipTrigger>
                 <TooltipContent side="top" className="text-xs">
                   <p>
-                    {activityLabels[level]} on {getDayLabel(index)}
+                    {formatDate(day.date)} — {day.count === 0 ? "No activity" : `${day.count} event${day.count > 1 ? "s" : ""}`}
                   </p>
                 </TooltipContent>
               </Tooltip>
@@ -80,11 +81,11 @@ export function ActivityHeatmap() {
       {/* Legend */}
       <div className="flex items-center gap-2 text-xs text-[#64748b]">
         <span>Less</span>
-        <div className="flex gap-[2px]">
+        <div className="flex gap-[3px]">
           {[0, 1, 2, 3, 4].map((level) => (
             <div
               key={level}
-              className={`h-[10px] w-[10px] rounded-[2px] ${activityColors[level]}`}
+              className={`h-[12px] w-[12px] rounded-sm ${getColorClass(level)}`}
             />
           ))}
         </div>
@@ -92,7 +93,7 @@ export function ActivityHeatmap() {
       </div>
 
       <p className="text-sm text-[#64748b]">
-        {activeDays} active days in the last 90 days
+        {activeDays} active day{activeDays !== 1 ? "s" : ""} in the last 90 days
       </p>
     </div>
   )

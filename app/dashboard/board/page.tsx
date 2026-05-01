@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button"
 import { ProjectCard } from "@/components/project-card"
 import { ContributeModal } from "@/components/contribute-modal"
 import { FiltersBar, type BoardFilters, type SortOption } from "@/components/filters-bar"
+import { createClient } from "@/lib/supabase/client"
 import type { ProjectListItem } from "@/lib/types"
 
 const DEFAULT_FILTERS: BoardFilters = {
@@ -61,10 +62,15 @@ export default function BoardPage() {
   const [filters, setFilters] = useState<BoardFilters>(DEFAULT_FILTERS)
   const [selected, setSelected] = useState<ProjectListItem | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
+  const [currentUserId, setCurrentUserId] = useState<string>("")
 
   const fetchProjects = useCallback(async () => {
     setLoading(true)
     try {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) setCurrentUserId(user.id)
+
       const res = await fetch("/api/projects")
       if (res.ok) {
         const data = await res.json()
@@ -209,7 +215,7 @@ export default function BoardPage() {
             /* Project cards grid */
             <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
               {filtered.map((project) => (
-                <ProjectCard key={project.id} project={project} onView={handleView} />
+                <ProjectCard key={project.id} project={project} currentUserId={currentUserId} onView={handleView} />
               ))}
             </div>
           )}

@@ -23,6 +23,20 @@ export async function POST(req: NextRequest) {
         // Use admin client for DB mutations (bypasses RLS)
         const admin = createAdminClient()
 
+        // Fetch user's company_domain so we can scope the project correctly
+        const { data: currentUser } = await admin
+            .from('users')
+            .select('company_domain')
+            .eq('id', user.id)
+            .single()
+
+        if (!currentUser?.company_domain) {
+            return NextResponse.json(
+                { error: 'User profile or company_domain not found' },
+                { status: 400 }
+            )
+        }
+
         // Save project
         const { data: project, error: projectError } = await admin
             .from('projects')
@@ -32,6 +46,7 @@ export async function POST(req: NextRequest) {
                 tech_stack,
                 problem_id,
                 created_by: user.id,
+                company_domain: currentUser.company_domain,
             })
             .select()
             .single()
@@ -58,11 +73,11 @@ export async function POST(req: NextRequest) {
             event_type: 'project_published',
             points: 50,
             metadata: { project_id: project.id },
-        }).then(() => {}, (e: any) => console.warn('[publish-project] Points event warning:', e))
+        }).then(() => { }, (e: any) => console.warn('[publish-project] Points event warning:', e))
 
         // Update total points on user (best-effort)
         await admin.rpc('increment_points', { user_id: user.id, amount: 50 })
-            .then(() => {}, (e: any) => console.warn('[publish-project] Increment points warning:', e))
+            .then(() => { }, (e: any) => console.warn('[publish-project] Increment points warning:', e))
 
         console.log('[publish-project] Published project:', project.id)
         return NextResponse.json({ project_id: project.id })

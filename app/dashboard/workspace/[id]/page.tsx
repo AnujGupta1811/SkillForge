@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import { KanbanBoard } from "@/components/kanban-board"
 import { SubmitReviewModal } from "@/components/submit-review-modal"
-import { TakeFeatureModal } from "@/components/take-feature-modal"
+import { ContributionRequestsPanel, type ContributionRequest } from "@/components/contribution-requests-panel"
 import { createClient } from "@/lib/supabase/client"
 import type { Feature, ProjectDetail } from "@/lib/types"
 
@@ -116,7 +116,11 @@ export default function WorkspacePage({
   const [currentUserId, setCurrentUserId] = useState<string>("")
 
   const [submitFeature, setSubmitFeature] = useState<Feature | null>(null)
-  const [takeFeature, setTakeFeature] = useState<Feature | null>(null)
+
+  // Contribution requests (for lead engineer panel)
+  const [contributionRequests, setContributionRequests] = useState<ContributionRequest[]>([])
+  // Pending feature IDs that the current user has requested (for non-lead users)
+  const [myPendingFeatureIds, setMyPendingFeatureIds] = useState<Set<string>>(new Set())
 
   // Fetch current user and project data
   const fetchData = useCallback(async () => {
@@ -135,6 +139,26 @@ export default function WorkspacePage({
         const data: ProjectDetail = await res.json()
         setProject(data)
         setFeatures(data.features || [])
+      }
+
+      // Fetch contributions for this project
+      const contribRes = await fetch(`/api/contributions?project_id=${projectId}`)
+      if (contribRes.ok) {
+        const contribData = await contribRes.json()
+        const allContributions = contribData.contributions || []
+        
+        setContributionRequests(allContributions)
+
+        // Build set of feature IDs this user has pending requests for
+        if (user) {
+          const pendingIds = new Set<string>()
+          allContributions.forEach((c: any) => {
+            if (c.user_id === user.id && c.status === "pending" && c.feature_id) {
+              pendingIds.add(c.feature_id)
+            }
+          })
+          setMyPendingFeatureIds(pendingIds)
+        }
       }
     } catch (err) {
       console.error("Failed to fetch project:", err)
@@ -196,91 +220,100 @@ export default function WorkspacePage({
     counts.total > 0 ? Math.round((counts.done / counts.total) * 100) : 0
 
   // Optimistic update helper
-  function updateFeatureStatus(featureId: string, status: string) {
+  function updateFeatureLocally(featureId: string, updates: Partial<Feature>) {
     setFeatures((prev) =>
-      prev.map((f) => (f.id === featureId ? { ...f, status: status as Feature["status"] } : f))
+      prev.map((f) => (f.id === featureId ? { ...f, ...updates } : f))
     )
   }
 
-  // Handle "Move to In Progress" — optimistic then API
-  async function handleMoveToInProgress(feature: Feature) {
-    updateFeatureStatus(feature.id, "in_progress")
+  // CASE 1: "Start Feature" — project creator self-assigns and moves to in_progress
+  async function handleStartFeature(feature: Feature) {
+    // Optimistic update
+    updateFeatureLocally(feature.id, {
+      status: "in_progress",
+      assigned_to: currentUserId,
+      assigned_user: project?.creator
+        ? { id: project.creator.id, full_name: project.creator.full_name, avatar_url: project.creator.avatar_url }
+        : undefined,
+    })
     try {
-      await fetch(`/api/features/${feature.id}`, {
+      const res = await fetch(`/api/features/${feature.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "in_progress" }),
+        body: JSON.stringify({ status: "in_progress", assigned_to: currentUserId }),
       })
+      if (!res.ok) {
+        // Revert on failure
+        updateFeatureLocally(feature.id, {
+          status: feature.status,
+          assigned_to: feature.assigned_to,
+          assigned_user: feature.assigned_user,
+        })
+      }
     } catch (err) {
-      console.error("Failed to move to in progress:", err)
-      // Revert on failure
-      updateFeatureStatus(feature.id, feature.status)
+      console.error("Failed to start feature:", err)
+      updateFeatureLocally(feature.id, {
+        status: feature.status,
+        assigned_to: feature.assigned_to,
+        assigned_user: feature.assigned_user,
+      })
+    }
+  }
+
+  // CASE 2: "Request to Contribute" — non-creator requests a feature
+  async function handleRequestContribute(feature: Feature) {
+    try {
+      const res = await fetch("/api/contributions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          project_id: projectId,
+          feature_ids: [feature.id],
+        }),
+      })
+      if (res.ok) {
+        // Add to pending set
+        setMyPendingFeatureIds((prev) => {
+          const next = new Set(prev)
+          next.add(feature.id)
+          return next
+        })
+        // Re-fetch contributions so lead engineer panel updates too
+        const contribRes = await fetch(`/api/contributions?project_id=${projectId}`)
+        if (contribRes.ok) {
+          const contribData = await contribRes.json()
+          setContributionRequests(contribData.contributions || [])
+        }
+      }
+    } catch (err) {
+      console.error("Failed to request contribution:", err)
     }
   }
 
   // Handle submit for review — via modal
   function handleConfirmSubmit(feature: Feature) {
-    updateFeatureStatus(feature.id, "in_review")
+    updateFeatureLocally(feature.id, { status: "in_review" })
     setSubmitFeature(null)
   }
 
-  // Handle take feature success — refresh data
-  function handleTakeSuccess() {
-    // The contribution is created, but feature isn't assigned yet (pending approval)
-    // Just close modal — data will update via realtime when lead approves
-  }
-
-  // Handle approve (lead engineer) — optimistic update then API
+  // Handle approve (lead engineer) — move feature to done
   async function handleApprove(feature: Feature) {
-    updateFeatureStatus(feature.id, "done")
+    updateFeatureLocally(feature.id, { status: "done" })
     try {
-      // First find the contribution for this feature to approve it
-      const contribRes = await fetch(
-        `/api/contributions?project_id=${projectId}`
-      )
-      if (contribRes.ok) {
-        const contributions = await contribRes.json()
-        const contrib = contributions.find(
-          (c: { feature_id: string; status: string }) =>
-            c.feature_id === feature.id && c.status === "approved"
-        )
-        if (contrib) {
-          // Contribution already approved, just update feature status
-          await fetch(`/api/features/${feature.id}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ status: "done" }),
-          })
-        } else {
-          // Find pending contribution and approve it, then mark done
-          const pendingContrib = contributions.find(
-            (c: { feature_id: string; status: string }) =>
-              c.feature_id === feature.id && c.status === "pending"
-          )
-          if (pendingContrib) {
-            await fetch(`/api/contributions/${pendingContrib.id}`, {
-              method: "PATCH",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ action: "approve" }),
-            })
-          }
-          // Mark feature as done
-          await fetch(`/api/features/${feature.id}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ status: "done" }),
-          })
-        }
-      }
+      await fetch(`/api/features/${feature.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "done" }),
+      })
     } catch (err) {
       console.error("Failed to approve:", err)
-      updateFeatureStatus(feature.id, feature.status)
+      updateFeatureLocally(feature.id, { status: feature.status })
     }
   }
 
   // Handle request changes (lead engineer) — move back to in_progress
   async function handleRequestChanges(feature: Feature) {
-    updateFeatureStatus(feature.id, "in_progress")
+    updateFeatureLocally(feature.id, { status: "in_progress" })
     try {
       await fetch(`/api/features/${feature.id}`, {
         method: "PATCH",
@@ -289,7 +322,67 @@ export default function WorkspacePage({
       })
     } catch (err) {
       console.error("Failed to request changes:", err)
-      updateFeatureStatus(feature.id, feature.status)
+      updateFeatureLocally(feature.id, { status: feature.status })
+    }
+  }
+
+  // Contribution panel: Approve a request
+  async function handleApproveContribution(request: ContributionRequest) {
+    try {
+      const res = await fetch(`/api/contributions/${request.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "approve" }),
+      })
+      if (res.ok) {
+        const data = await res.json()
+
+        // Remove from requests list
+        setContributionRequests((prev) =>
+          prev.map((r) => (r.id === request.id ? { ...r, status: "approved" } : r))
+        )
+
+        // Update the feature in the kanban board — move to in_progress, assign contributor
+        if (data.feature) {
+          updateFeatureLocally(request.feature_id, {
+            status: data.feature.status,
+            assigned_to: data.feature.assigned_to,
+            assigned_user: data.feature.assigned_user,
+          })
+        } else if (request.feature_id && request.user) {
+          // Fallback: update with what we know
+          updateFeatureLocally(request.feature_id, {
+            status: "in_progress",
+            assigned_to: request.user_id,
+            assigned_user: {
+              id: request.user.id,
+              full_name: request.user.full_name,
+              avatar_url: request.user.avatar_url,
+            },
+          })
+        }
+      }
+    } catch (err) {
+      console.error("Failed to approve contribution:", err)
+    }
+  }
+
+  // Contribution panel: Decline a request
+  async function handleDeclineContribution(request: ContributionRequest) {
+    try {
+      const res = await fetch(`/api/contributions/${request.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "reject" }),
+      })
+      if (res.ok) {
+        // Remove from requests list
+        setContributionRequests((prev) =>
+          prev.filter((r) => r.id !== request.id)
+        )
+      }
+    } catch (err) {
+      console.error("Failed to decline contribution:", err)
     }
   }
 
@@ -443,34 +536,18 @@ export default function WorkspacePage({
               </h2>
 
               <div className="flex flex-col gap-3">
-                {project.team.map((member) => (
-                  <div
-                    key={member.id}
-                    className="flex items-center gap-3"
-                  >
-                    {member.is_lead && (
-                      <span
-                        className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white"
-                        style={{ backgroundColor: "#7c3aed" }}
-                      >
-                        Lead
+                {project.team?.map((member: any) => (
+                  <div key={member.id} className="flex items-center gap-2">
+                    <Avatar avatarUrl={member.avatar_url} name={member.full_name} size="sm" />
+                    <span className="text-sm text-[#0f172a]">{member.full_name}</span>
+                    {member.id === currentUserId && (
+                      <span className="text-xs text-[#64748b]">(you)</span>
+                    )}
+                    {member.role === 'lead' && (
+                      <span className="text-xs bg-[#7c3aed] text-white px-2 py-0.5 rounded-full">
+                        LEAD
                       </span>
                     )}
-                    <Avatar
-                      name={member.full_name}
-                      avatarUrl={member.avatar_url}
-                    />
-                    <span
-                      className="text-sm font-medium"
-                      style={{ color: "#0f172a" }}
-                    >
-                      {member.full_name}
-                      {member.id === currentUserId && (
-                        <span className="ml-1 text-xs text-[#7c3aed]">
-                          (you)
-                        </span>
-                      )}
-                    </span>
                   </div>
                 ))}
               </div>
@@ -530,14 +607,26 @@ export default function WorkspacePage({
             </div>
           </section>
 
+          {/* Section 2.5 — Contribution Requests (lead engineer only) */}
+          {isLeadEngineer && (
+            <section aria-label="Contribution requests">
+              <ContributionRequestsPanel
+                requests={contributionRequests}
+                onApprove={handleApproveContribution}
+                onDecline={handleDeclineContribution}
+              />
+            </section>
+          )}
+
           {/* Section 3 — Kanban */}
           <section aria-label="Task board">
             <KanbanBoard
               features={features}
               currentUserId={currentUserId}
               isLeadEngineer={isLeadEngineer}
-              onTake={(f) => setTakeFeature(f)}
-              onMoveToInProgress={handleMoveToInProgress}
+              myPendingFeatureIds={myPendingFeatureIds}
+              onStartFeature={handleStartFeature}
+              onRequestContribute={handleRequestContribute}
               onSubmit={(f) => setSubmitFeature(f)}
               onApprove={handleApprove}
               onRequestChanges={handleRequestChanges}
@@ -551,13 +640,6 @@ export default function WorkspacePage({
         open={submitFeature !== null}
         onOpenChange={(o) => !o && setSubmitFeature(null)}
         onConfirm={handleConfirmSubmit}
-      />
-      <TakeFeatureModal
-        feature={takeFeature}
-        projectId={projectId}
-        open={takeFeature !== null}
-        onOpenChange={(o) => !o && setTakeFeature(null)}
-        onSuccess={handleTakeSuccess}
       />
     </div>
   )

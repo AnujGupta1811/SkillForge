@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 
 export async function GET() {
   try {
@@ -46,6 +47,11 @@ export async function GET() {
       return NextResponse.json({ error: projectsError.message }, { status: 500 })
     }
 
+    const supabaseAdmin = createSupabaseClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    )
+
     // For each project, get feature counts and contributors
     const enrichedProjects = await Promise.all(
       (projects || []).map(async (project) => {
@@ -58,17 +64,10 @@ export async function GET() {
         const feature_total = features?.length || 0
         const feature_done = features?.filter(f => f.status === 'done').length || 0
 
-        // Get unique contributors (users with approved contributions)
-        const { data: contributions } = await supabase
+        // Get unique contributors (users with approved contributions) using admin client to bypass RLS
+        const { data: contributions } = await supabaseAdmin
           .from('contributions')
-          .select(`
-            user_id,
-            user:users!contributions_user_id_fkey (
-              id,
-              full_name,
-              avatar_url
-            )
-          `)
+          .select('user_id, users(id, full_name, avatar_url)')
           .eq('project_id', project.id)
           .eq('status', 'approved')
 
@@ -80,7 +79,10 @@ export async function GET() {
             seen.add(c.user_id)
             return true
           })
-          .map(c => c.user)
+          .map(c => {
+             const u = Array.isArray(c.users) ? c.users[0] : c.users;
+             return u;
+          })
           .filter(Boolean)
 
         return {

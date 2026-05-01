@@ -15,8 +15,9 @@ interface KanbanBoardProps {
   features: Feature[]
   currentUserId: string
   isLeadEngineer: boolean
-  onTake: (feature: Feature) => void
-  onMoveToInProgress: (feature: Feature) => void
+  myPendingFeatureIds: Set<string>
+  onStartFeature: (feature: Feature) => void
+  onRequestContribute: (feature: Feature) => void
   onSubmit: (feature: Feature) => void
   onApprove: (feature: Feature) => void
   onRequestChanges: (feature: Feature) => void
@@ -26,8 +27,9 @@ export function KanbanBoard({
   features,
   currentUserId,
   isLeadEngineer,
-  onTake,
-  onMoveToInProgress,
+  myPendingFeatureIds,
+  onStartFeature,
+  onRequestContribute,
   onSubmit,
   onApprove,
   onRequestChanges,
@@ -75,8 +77,9 @@ export function KanbanBoard({
                     feature={feature}
                     currentUserId={currentUserId}
                     isLeadEngineer={isLeadEngineer}
-                    onTake={onTake}
-                    onMoveToInProgress={onMoveToInProgress}
+                    myPendingFeatureIds={myPendingFeatureIds}
+                    onStartFeature={onStartFeature}
+                    onRequestContribute={onRequestContribute}
                     onSubmit={onSubmit}
                     onApprove={onApprove}
                     onRequestChanges={onRequestChanges}

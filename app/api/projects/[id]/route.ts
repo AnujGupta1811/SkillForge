@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 
 export async function GET(
   _request: NextRequest,
@@ -13,6 +14,8 @@ export async function GET(
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
+
+    console.log(`[projects/id] Fetching project ${id} as user ${user.id}`)
 
     // Fetch project with creator
     const { data: project, error: projectError } = await supabase
@@ -32,12 +35,20 @@ export async function GET(
         )
       `)
       .eq('id', id)
-      .single()
+      .maybeSingle()
 
-    if (projectError || !project) {
+    if (projectError) {
       console.error('[projects/id] Fetch error:', projectError)
       return NextResponse.json(
-        { error: projectError?.message || 'Project not found' },
+        { error: projectError.message },
+        { status: 500 }
+      )
+    }
+
+    if (!project) {
+      console.warn(`[projects/id] No project found for id=${id} — likely RLS blocking or project does not exist`)
+      return NextResponse.json(
+        { error: 'Project not found' },
         { status: 404 }
       )
     }
@@ -62,44 +73,41 @@ export async function GET(
       .eq('project_id', id)
       .order('created_at', { ascending: true })
 
-    // Get team members (distinct users with approved contributions)
-    const { data: contributions } = await supabase
+    // Get project creator
+    const { data: creator } = await supabase
+      .from('users')
+      .select('id, full_name, avatar_url, email')
+      .eq('id', project.created_by)
+      .single()
+
+    // Get all approved contributors (distinct users) using admin client to bypass RLS
+    // (safe because we already verified the current user has access to this project)
+    const supabaseAdmin = createSupabaseClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    )
+    const { data: approvedContributions } = await supabaseAdmin
       .from('contributions')
-      .select(`
-        user_id,
-        user:users!contributions_user_id_fkey (
-          id,
-          full_name,
-          avatar_url
-        )
-      `)
+      .select('user_id, users(id, full_name, avatar_url, email)')
       .eq('project_id', id)
       .eq('status', 'approved')
 
-    // Build team: creator + approved contributors (deduplicated)
-    const seen = new Set<string>()
-    const team: { id: string; full_name: string; avatar_url: string | null; is_lead: boolean }[] = []
-
-    // Add creator as lead
-    // Supabase join on .single() returns object, but TS may infer array
-    const rawCreator = project.creator as unknown
-    const creator = (Array.isArray(rawCreator) ? rawCreator[0] : rawCreator) as { id: string; full_name: string; avatar_url: string | null } | null
-    if (creator) {
-      seen.add(creator.id)
-      team.push({ ...creator, is_lead: true })
-    }
-
-    // Add contributors
-    if (contributions) {
-      for (const c of contributions) {
-        if (c.user_id && !seen.has(c.user_id) && c.user) {
-          seen.add(c.user_id)
-          const rawUser = c.user as unknown
-          const u = (Array.isArray(rawUser) ? rawUser[0] : rawUser) as { id: string; full_name: string; avatar_url: string | null }
-          team.push({ ...u, is_lead: false })
-        }
+    // Build unique team members list
+    const contributorMap = new Map()
+    ;(approvedContributions || []).forEach((c: any) => {
+      if (c.users && c.user_id !== project.created_by) {
+        const u = Array.isArray(c.users) ? c.users[0] : c.users;
+        contributorMap.set(c.user_id, {
+          ...u,
+          role: 'contributor'
+        })
       }
-    }
+    })
+
+    const team = [
+      { ...creator, role: 'lead' },
+      ...Array.from(contributorMap.values())
+    ]
 
     return NextResponse.json({
       id: project.id,
