@@ -1,6 +1,7 @@
 // components/project-card.tsx
 "use client"
 
+import Link from "next/link"
 import { CheckCircle2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -55,11 +56,12 @@ export function ProjectCard({ project, currentUserId, onView }: ProjectCardProps
     const extraTags = project.tech_stack.length - 3
 
     return (
-        <Card
-            className={cn(
-                "relative flex flex-col gap-4 rounded-xl border border-[#e2e8f0] bg-white p-5 shadow-none transition-shadow hover:shadow-sm"
-            )}
-        >
+        <Link href={`/dashboard/workspace/${project.id}`}>
+            <Card
+                className={cn(
+                    "relative flex flex-col gap-4 rounded-xl border border-[#e2e8f0] bg-white p-5 shadow-none transition-shadow hover:shadow-md cursor-pointer"
+                )}
+            >
             {/* Top row: name + status */}
             <div className="flex items-start justify-between gap-3">
                 <h3 className="text-[15px] font-semibold leading-snug text-[#0f172a] text-pretty">
@@ -162,7 +164,11 @@ export function ProjectCard({ project, currentUserId, onView }: ProjectCardProps
                     <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => onView(project)}
+                        onClick={(e) => {
+                            e.preventDefault()
+                            e.stopPropagation()
+                            onView(project)
+                        }}
                         className="h-8 border-[#7c3aed] bg-white text-[#7c3aed] hover:bg-[#ede9fe] hover:text-[#7c3aed]"
                     >
                         Contribute
@@ -170,6 +176,7 @@ export function ProjectCard({ project, currentUserId, onView }: ProjectCardProps
                 )}
             </div>
         </Card>
+        </Link>
     )
 }
 

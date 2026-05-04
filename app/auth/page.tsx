@@ -129,8 +129,8 @@ function AuthContent() {
             </h1>
             <p className="text-sm text-muted-foreground">
               {tab === "signin"
-                ? "Sign in to continue building on the bench."
-                : "Start turning bench time into shipped projects."}
+                ? "Sign in to continue building while between projects."
+                : "Start turning your downtime into shipped projects."}
             </p>
           </div>
         </div>

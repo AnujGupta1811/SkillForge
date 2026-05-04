@@ -21,15 +21,15 @@ export default function LandingPage() {
         <div className="mx-auto flex w-full max-w-6xl flex-col items-center px-4 pt-20 pb-24 sm:px-6 md:pt-28 md:pb-32">
           <div className="inline-flex items-center gap-2 rounded-full border border-border bg-secondary px-3 py-1 text-xs font-medium text-secondary-foreground">
             <span className="h-1.5 w-1.5 rounded-full bg-accent" aria-hidden="true" />
-            For engineers on the bench
+            For engineers between projects
           </div>
 
           <h1 className="mt-6 max-w-3xl text-center text-4xl font-bold tracking-tight text-foreground text-balance sm:text-5xl md:text-6xl">
-            Turn bench time into <span className="text-accent">building time</span>
+            Turn your downtime into <span className="text-accent">building time</span>
           </h1>
 
           <p className="mt-6 max-w-2xl text-center text-base leading-relaxed text-muted-foreground text-pretty sm:text-lg">
-            SkillForge helps bench engineers at IT companies discover real problems, build projects, and grow visibly —
+            SkillForge helps engineers at IT companies discover real problems, build projects, and grow visibly —
             all in one place.
           </p>
 
@@ -84,7 +84,7 @@ export default function LandingPage() {
             <FeatureCard
               icon={BarChart3}
               title="Progress Dashboard"
-              description="Track your activity, skills, and contributions. Make your bench time visible to your manager."
+              description="Track your activity, skills, and contributions. Make your downtime visible to your manager."
             />
           </div>
         </div>
@@ -94,7 +94,7 @@ export default function LandingPage() {
       <section className="border-t border-border bg-primary text-primary-foreground">
         <div className="mx-auto flex w-full max-w-4xl flex-col items-center px-4 py-20 text-center sm:px-6 md:py-24">
           <h2 className="text-3xl font-bold tracking-tight text-balance sm:text-4xl">
-            Ready to make your bench time count?
+            Ready to make your downtime count?
           </h2>
           <p className="mt-4 max-w-xl text-base leading-relaxed text-primary-foreground/70 text-pretty">
             Join engineers turning idle weeks into shipped projects, sharper skills, and visible progress.
@@ -115,7 +115,7 @@ export default function LandingPage() {
       {/* Footer */}
       <footer className="border-t border-border bg-background">
         <div className="mx-auto flex w-full max-w-6xl flex-col items-center justify-between gap-4 px-4 py-8 text-sm text-muted-foreground sm:flex-row sm:px-6">
-          <p>© {new Date().getFullYear()} SkillForge. Built for the bench.</p>
+          <p>© {new Date().getFullYear()} SkillForge. Built for transition periods.</p>
           <div className="flex items-center gap-6">
             <Link href="#features" className="hover:text-foreground">
               Features
