@@ -4,7 +4,7 @@ import type React from "react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Suspense, useEffect, useState } from "react"
-import { ArrowLeft, Hammer } from "lucide-react"
+import { ArrowLeft, Hammer, Mail } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -47,10 +47,19 @@ function AuthContent() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
   const [message, setMessage] = useState("")
+  const [showVerificationState, setShowVerificationState] = useState(false)
 
   useEffect(() => {
     const mode = params.get("mode") === "signup" ? "signup" : "signin"
     setTab(mode)
+
+    const errorParam = params.get('error')
+    if (errorParam === 'verification_failed') {
+      setError('Email verification failed. Please try signing up again.')
+    }
+    if (errorParam === 'auth_failed') {
+      setError('Authentication failed. Please try again.')
+    }
   }, [params])
 
   async function handleSignUp(e: React.FormEvent) {
@@ -67,10 +76,15 @@ function AuthContent() {
       password,
       options: {
         data: { full_name: fullName },
+        emailRedirectTo: `${location.origin}/auth/callback`,
       },
     })
-    if (error) setError(error.message)
-    else setMessage("Check your email to confirm your account!")
+    if (error) {
+      setError(error.message)
+    } else {
+      setMessage('Check your email and click the verification link to activate your account.')
+      setShowVerificationState(true)
+    }
     setLoading(false)
   }
 
@@ -80,8 +94,15 @@ function AuthContent() {
     setError("")
     setMessage("")
     const { error } = await supabase.auth.signInWithPassword({ email, password })
-    if (error) setError(error.message)
-    else router.push("/dashboard")
+    if (error) {
+      if (error.message.includes('Email not confirmed')) {
+        setError('Please verify your email first. Check your inbox for the verification link.')
+      } else {
+        setError(error.message)
+      }
+    } else {
+      router.push("/dashboard")
+    }
     setLoading(false)
   }
 
@@ -117,132 +138,160 @@ function AuthContent() {
         {error && <div className="mb-4 rounded-md bg-destructive/10 p-3 text-sm text-destructive">{error}</div>}
         {message && <div className="mb-4 rounded-md bg-accent/10 p-3 text-sm text-accent">{message}</div>}
 
-        <Tabs value={tab} onValueChange={(v: string) => setTab(v as "signin" | "signup")} className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="signin">Sign in</TabsTrigger>
-            <TabsTrigger value="signup">Sign up</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="signin" className="mt-6">
-            <form onSubmit={handleSignIn} className="flex flex-col gap-4">
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="signin-email">Email</Label>
-                <Input
-                  id="signin-email"
-                  type="email"
-                  placeholder="you@company.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                />
-              </div>
-
-              <div className="flex flex-col gap-2">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="signin-password">Password</Label>
-                  <Link href="#" className="text-xs font-medium text-accent hover:underline">
-                    Forgot password?
-                  </Link>
-                </div>
-                <Input
-                  id="signin-password"
-                  type="password"
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                />
-              </div>
-
-              <Button
-                type="submit"
-                disabled={loading}
-                className="w-full bg-accent text-accent-foreground hover:bg-accent/90"
-              >
-                {loading ? "Signing in..." : "Sign in"}
-              </Button>
-
-              <Divider />
-
-              <Button type="button" variant="outline" className="w-full bg-transparent" onClick={handleGoogle}>
-                <GoogleIcon className="mr-2 h-4 w-4" />
-                Continue with Google
-              </Button>
-            </form>
-          </TabsContent>
-
-          <TabsContent value="signup" className="mt-6">
-            <form onSubmit={handleSignUp} className="flex flex-col gap-4">
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="signup-name">Full name</Label>
-                <Input
-                  id="signup-name"
-                  type="text"
-                  placeholder="Jane Doe"
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  required
-                />
-              </div>
-
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="signup-email">Work email</Label>
-                <Input
-                  id="signup-email"
-                  type="email"
-                  placeholder="jane@infosys.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                />
-              </div>
-
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="signup-password">Password</Label>
-                <Input
-                  id="signup-password"
-                  type="password"
-                  placeholder="At least 8 characters"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  minLength={8}
-                />
-              </div>
-
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="signup-confirm">Confirm password</Label>
-                <Input
-                  id="signup-confirm"
-                  type="password"
-                  placeholder="Re-enter your password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  required
-                />
-              </div>
-
-              <Button
-                type="submit"
-                disabled={loading}
-                className="w-full bg-accent text-accent-foreground hover:bg-accent/90"
-              >
-                {loading ? "Creating account..." : "Create account"}
-              </Button>
-
-              <Divider />
-
-              <Button type="button" variant="outline" className="w-full bg-transparent" onClick={handleGoogle}>
-                <GoogleIcon className="mr-2 h-4 w-4" />
-                Continue with Google
-              </Button>
-
-              <p className="text-center text-xs leading-relaxed text-muted-foreground text-pretty">
-                Use your company work email to connect with your team.
+        {showVerificationState ? (
+          <div className="flex flex-col items-center gap-6 py-4 text-center">
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-accent/10 text-accent">
+              <Mail className="h-8 w-8" />
+            </div>
+            <div className="flex flex-col gap-2">
+              <h2 className="text-2xl font-semibold tracking-tight text-foreground">Check your email</h2>
+              <p className="text-muted-foreground">
+                We sent a verification link to <span className="font-medium text-foreground">{email}</span>.
+                Click it to activate your account.
               </p>
-            </form>
-          </TabsContent>
-        </Tabs>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Didn't receive it? Check your spam folder.
+            </p>
+            <Button
+              variant="outline"
+              className="mt-2 w-full"
+              onClick={() => {
+                setShowVerificationState(false)
+                setTab("signin")
+              }}
+            >
+              Back to Sign In
+            </Button>
+          </div>
+        ) : (
+          <Tabs value={tab} onValueChange={(v: string) => setTab(v as "signin" | "signup")} className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="signin">Sign in</TabsTrigger>
+              <TabsTrigger value="signup">Sign up</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="signin" className="mt-6">
+              <form onSubmit={handleSignIn} className="flex flex-col gap-4">
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="signin-email">Email</Label>
+                  <Input
+                    id="signin-email"
+                    type="email"
+                    placeholder="you@company.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                  />
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="signin-password">Password</Label>
+                    <Link href="#" className="text-xs font-medium text-accent hover:underline">
+                      Forgot password?
+                    </Link>
+                  </div>
+                  <Input
+                    id="signin-password"
+                    type="password"
+                    placeholder="••••••••"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                  />
+                </div>
+
+                <Button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full bg-accent text-accent-foreground hover:bg-accent/90"
+                >
+                  {loading ? "Signing in..." : "Sign in"}
+                </Button>
+
+                <Divider />
+
+                <Button type="button" variant="outline" className="w-full bg-transparent" onClick={handleGoogle}>
+                  <GoogleIcon className="mr-2 h-4 w-4" />
+                  Continue with Google
+                </Button>
+              </form>
+            </TabsContent>
+
+            <TabsContent value="signup" className="mt-6">
+              <form onSubmit={handleSignUp} className="flex flex-col gap-4">
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="signup-name">Full name</Label>
+                  <Input
+                    id="signup-name"
+                    type="text"
+                    placeholder="Jane Doe"
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    required
+                  />
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="signup-email">Work email</Label>
+                  <Input
+                    id="signup-email"
+                    type="email"
+                    placeholder="jane@infosys.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                  />
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="signup-password">Password</Label>
+                  <Input
+                    id="signup-password"
+                    type="password"
+                    placeholder="At least 8 characters"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    minLength={8}
+                  />
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="signup-confirm">Confirm password</Label>
+                  <Input
+                    id="signup-confirm"
+                    type="password"
+                    placeholder="Re-enter your password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    required
+                  />
+                </div>
+
+                <Button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full bg-accent text-accent-foreground hover:bg-accent/90"
+                >
+                  {loading ? "Creating account..." : "Create account"}
+                </Button>
+
+                <Divider />
+
+                <Button type="button" variant="outline" className="w-full bg-transparent" onClick={handleGoogle}>
+                  <GoogleIcon className="mr-2 h-4 w-4" />
+                  Continue with Google
+                </Button>
+
+                <p className="text-center text-xs leading-relaxed text-muted-foreground text-pretty">
+                  Use your company work email to connect with your team.
+                </p>
+              </form>
+            </TabsContent>
+          </Tabs>
+        )}
       </CardContent>
     </Card>
   )

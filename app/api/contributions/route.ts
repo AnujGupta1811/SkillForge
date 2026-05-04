@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { sendEmail } from '@/lib/emails/send'
+import { contributionRequestEmail } from '@/lib/emails/templates'
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
@@ -52,6 +54,49 @@ export async function POST(req: NextRequest) {
   }
 
   console.log('[contributions POST] Success:', data)
+
+  // Send email notification to project lead (fire-and-forget)
+  try {
+    const { data: project } = await supabase
+      .from('projects')
+      .select('name, created_by')
+      .eq('id', project_id)
+      .single()
+
+    const { data: lead } = await supabase
+      .from('users')
+      .select('full_name, email')
+      .eq('id', project?.created_by)
+      .single()
+
+    const { data: contributor } = await supabase
+      .from('users')
+      .select('full_name, email')
+      .eq('id', user.id)
+      .single()
+
+    const { data: feature } = await supabase
+      .from('features')
+      .select('title')
+      .eq('id', feature_id)
+      .single()
+
+    if (lead?.email && project && contributor && feature) {
+      const projectUrl = `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/workspace/${project_id}`
+      const { subject, html } = contributionRequestEmail({
+        leadName: lead.full_name,
+        contributorName: contributor.full_name,
+        contributorEmail: contributor.email,
+        featureTitle: feature.title,
+        projectName: project.name,
+        projectUrl,
+      })
+      sendEmail({ to: lead.email, subject, html })
+    }
+  } catch (emailErr) {
+    console.error('[contributions POST] Email error:', emailErr)
+  }
+
   return NextResponse.json({ contribution: data })
 }
 

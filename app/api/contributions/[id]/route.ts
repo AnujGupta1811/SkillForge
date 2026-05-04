@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, createAdminClient } from '@/lib/supabase/server'
+import { sendEmail } from '@/lib/emails/send'
+import { contributionApprovedEmail, contributionRejectedEmail } from '@/lib/emails/templates'
 
 export async function PATCH(
   req: NextRequest,
@@ -116,6 +118,40 @@ export async function PATCH(
       })
       if (insertError) console.error('[contributions/id] point_events insert error:', insertError)
 
+      // Send approval email to contributor (fire-and-forget)
+      try {
+        const { data: emailContributor } = await supabase
+          .from('users')
+          .select('full_name, email')
+          .eq('id', contribution.user_id)
+          .single()
+
+        const { data: emailProject } = await supabase
+          .from('projects')
+          .select('name')
+          .eq('id', contribution.project_id)
+          .single()
+
+        const { data: emailFeature } = await supabase
+          .from('features')
+          .select('title')
+          .eq('id', contribution.feature_id)
+          .single()
+
+        if (emailContributor?.email && emailProject && emailFeature) {
+          const projectUrl = `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/workspace/${contribution.project_id}`
+          const { subject, html } = contributionApprovedEmail({
+            contributorName: emailContributor.full_name,
+            featureTitle: emailFeature.title,
+            projectName: emailProject.name,
+            projectUrl,
+          })
+          sendEmail({ to: emailContributor.email, subject, html })
+        }
+      } catch (emailErr) {
+        console.error('[contributions/id] Approve email error:', emailErr)
+      }
+
       return NextResponse.json({ success: true, action, feature: updatedFeature })
     } else {
       // Reject: just update status
@@ -127,6 +163,40 @@ export async function PATCH(
       if (updateError) {
         console.error('[contributions/id] Update error:', updateError)
         return NextResponse.json({ error: updateError.message }, { status: 500 })
+      }
+
+      // Send rejection email to contributor (fire-and-forget)
+      try {
+        const { data: emailContributor } = await supabase
+          .from('users')
+          .select('full_name, email')
+          .eq('id', contribution.user_id)
+          .single()
+
+        const { data: emailProject } = await supabase
+          .from('projects')
+          .select('name')
+          .eq('id', contribution.project_id)
+          .single()
+
+        const { data: emailFeature } = await supabase
+          .from('features')
+          .select('title')
+          .eq('id', contribution.feature_id)
+          .single()
+
+        if (emailContributor?.email && emailProject && emailFeature) {
+          const projectUrl = `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/workspace/${contribution.project_id}`
+          const { subject, html } = contributionRejectedEmail({
+            contributorName: emailContributor.full_name,
+            featureTitle: emailFeature.title,
+            projectName: emailProject.name,
+            projectUrl,
+          })
+          sendEmail({ to: emailContributor.email, subject, html })
+        }
+      } catch (emailErr) {
+        console.error('[contributions/id] Reject email error:', emailErr)
       }
 
       return NextResponse.json({ success: true, action })

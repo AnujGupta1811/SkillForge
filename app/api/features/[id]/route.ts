@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, createAdminClient } from '@/lib/supabase/server'
+import { sendEmail } from '@/lib/emails/send'
+import { featureSubmittedForReviewEmail, featureApprovedEmail } from '@/lib/emails/templates'
 
 export async function PATCH(
   req: NextRequest,
@@ -115,6 +117,75 @@ export async function PATCH(
         },
       })
       if (insertError) console.error('[features/id] point_events insert error:', insertError)
+    }
+
+    const updatedFeature = updated
+
+    // Trigger 4: Feature submitted for review → notify lead
+    if (status === 'in_review') {
+      try {
+        const { data: emailProject } = await supabase
+          .from('projects')
+          .select('name, created_by')
+          .eq('id', updatedFeature.project_id)
+          .single()
+
+        const { data: lead } = await supabase
+          .from('users')
+          .select('full_name, email')
+          .eq('id', emailProject?.created_by)
+          .single()
+
+        const { data: contributor } = await supabase
+          .from('users')
+          .select('full_name, email')
+          .eq('id', user.id)
+          .single()
+
+        if (lead?.email && emailProject && contributor) {
+          const projectUrl = `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/workspace/${updatedFeature.project_id}`
+          const { subject, html } = featureSubmittedForReviewEmail({
+            leadName: lead.full_name,
+            contributorName: contributor.full_name,
+            featureTitle: updatedFeature.title,
+            projectName: emailProject.name,
+            projectUrl,
+          })
+          sendEmail({ to: lead.email, subject, html })
+        }
+      } catch (emailErr) {
+        console.error('[features/id] in_review email error:', emailErr)
+      }
+    }
+
+    // Trigger 5: Feature approved (done) → notify contributor (if not the lead)
+    if (status === 'done' && updatedFeature.assigned_to && updatedFeature.assigned_to !== user.id) {
+      try {
+        const { data: emailProject } = await supabase
+          .from('projects')
+          .select('name')
+          .eq('id', updatedFeature.project_id)
+          .single()
+
+        const { data: contributor } = await supabase
+          .from('users')
+          .select('full_name, email')
+          .eq('id', updatedFeature.assigned_to)
+          .single()
+
+        if (contributor?.email && emailProject) {
+          const projectUrl = `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/workspace/${updatedFeature.project_id}`
+          const { subject, html } = featureApprovedEmail({
+            contributorName: contributor.full_name,
+            featureTitle: updatedFeature.title,
+            projectName: emailProject.name,
+            projectUrl,
+          })
+          sendEmail({ to: contributor.email, subject, html })
+        }
+      } catch (emailErr) {
+        console.error('[features/id] done email error:', emailErr)
+      }
     }
 
     return NextResponse.json(updated)
