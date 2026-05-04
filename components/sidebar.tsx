@@ -11,6 +11,7 @@ import {
   Menu,
   Sparkles,
   Users,
+  Settings,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -34,6 +35,7 @@ const navItems: NavItem[] = [
   { label: "Project board", href: "/dashboard/board", icon: LayoutGrid },
   { label: "Dashboard", href: "/dashboard", icon: BarChart2 },
   { label: "Manager view", href: "/dashboard/manager", icon: Users },
+  { label: "Settings", href: "/dashboard/settings", icon: Settings },
 ]
 
 interface SidebarProps {

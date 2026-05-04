@@ -33,6 +33,7 @@ export default function IntakePage() {
   ])
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
+  const [showSettingsPrompt, setShowSettingsPrompt] = useState(false)
 
   const subtopics = subtopic.trim() ? [subtopic.trim()] : []
 
@@ -51,6 +52,12 @@ export default function IntakePage() {
       const data = await res.json()
 
       if (!res.ok) {
+        if (data.error === 'NO_API_KEY') {
+          setError('You need to add your Anthropic API key before using AI features.')
+          setShowSettingsPrompt(true)
+          setIsLoading(false)
+          return
+        }
         throw new Error(data.error || 'Failed to fetch problems')
       }
 
@@ -154,8 +161,25 @@ export default function IntakePage() {
 
                   {/* Error message */}
                   {error && (
-                    <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                      {error}
+                    <div className="space-y-4">
+                      <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                        {error}
+                      </div>
+                      
+                      {showSettingsPrompt && (
+                        <div className="bg-violet-50 border border-violet-200 rounded-xl p-4 flex items-center justify-between">
+                          <div>
+                            <p className="text-sm font-medium text-violet-900">API Key Required</p>
+                            <p className="text-xs text-violet-700">Add your Anthropic API key to start finding problems</p>
+                          </div>
+                          <a 
+                            href="/dashboard/settings"
+                            className="bg-violet-600 text-white text-sm px-4 py-2 rounded-lg hover:bg-violet-700"
+                          >
+                            Go to Settings
+                          </a>
+                        </div>
+                      )}
                     </div>
                   )}
 

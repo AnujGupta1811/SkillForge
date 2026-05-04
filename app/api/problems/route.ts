@@ -3,6 +3,7 @@ import { fetchGithubIssues } from '@/lib/apis/github'
 import { fetchHackerNews } from '@/lib/apis/hackernews'
 import { fetchStackOverflow } from '@/lib/apis/stackoverflow'
 import Anthropic from '@anthropic-ai/sdk'
+import { getUserApiKey } from '@/lib/get-user-api-key'
 
 export async function POST(req: NextRequest) {
   try {
@@ -75,9 +76,17 @@ Map the difficulty to title case: "Beginner", "Intermediate", or "Advanced".`
 
     console.log('[/api/problems] Calling Claude API...')
 
-    const apiKey = process.env.ANTHROPIC_API_KEY
-    if (!apiKey) {
-      throw new Error('ANTHROPIC_API_KEY is not set')
+    let apiKey: string
+    try {
+      apiKey = await getUserApiKey()
+    } catch (e: any) {
+      if (e.message === 'NO_API_KEY') {
+        return NextResponse.json({ 
+          error: 'NO_API_KEY',
+          message: 'Please add your Anthropic API key in Settings to use this feature.'
+        }, { status: 402 })
+      }
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const anthropic = new Anthropic({ apiKey })

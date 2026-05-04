@@ -18,6 +18,7 @@ export default function GenerateProjectPage() {
     const [loading, setLoading] = useState(false)
     const [publishing, setPublishing] = useState(false)
     const [error, setError] = useState('')
+    const [showSettingsPrompt, setShowSettingsPrompt] = useState(false)
 
     // Load selected problem from sessionStorage
     useEffect(() => {
@@ -47,6 +48,15 @@ export default function GenerateProjectPage() {
                 }),
             })
             const data = await res.json()
+            if (!res.ok) {
+                if (data.error === 'NO_API_KEY') {
+                    setError('You need to add your Anthropic API key before using AI features.')
+                    setShowSettingsPrompt(true)
+                    setLoading(false)
+                    return
+                }
+                throw new Error(data.error || 'Generation failed')
+            }
             setProject(data.project)
         } catch (e) {
             setError('Generation failed. Try again.')
@@ -163,8 +173,25 @@ export default function GenerateProjectPage() {
 
                     {/* Error banner */}
                     {error && (
-                        <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                            {error}
+                        <div className="space-y-4 mt-4">
+                            <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                                {error}
+                            </div>
+                            
+                            {showSettingsPrompt && (
+                                <div className="bg-violet-50 border border-violet-200 rounded-xl p-4 flex items-center justify-between">
+                                    <div>
+                                        <p className="text-sm font-medium text-violet-900">API Key Required</p>
+                                        <p className="text-xs text-violet-700">Add your Anthropic API key to start generating projects</p>
+                                    </div>
+                                    <a 
+                                        href="/dashboard/settings"
+                                        className="bg-violet-600 text-white text-sm px-4 py-2 rounded-lg hover:bg-violet-700"
+                                    >
+                                        Go to Settings
+                                    </a>
+                                </div>
+                            )}
                         </div>
                     )}
 

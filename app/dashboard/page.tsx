@@ -117,11 +117,13 @@ function DashboardContent() {
   const [data, setData] = useState<DashboardData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [showKeyBanner, setShowKeyBanner] = useState(false)
 
   async function loadDashboard() {
     setLoading(true)
     setError(null)
     try {
+      // Load dashboard data
       const url = userIdParam ? `/api/dashboard?userId=${userIdParam}` : "/api/dashboard"
       const res = await fetch(url)
       if (!res.ok) {
@@ -130,6 +132,15 @@ function DashboardContent() {
       }
       const json: DashboardData = await res.json()
       setData(json)
+
+      // Check if API key is missing
+      if (!userIdParam) {
+        const keyRes = await fetch('/api/user/api-key')
+        const keyData = await keyRes.json()
+        if (keyData.has_key === false) {
+          setShowKeyBanner(true)
+        }
+      }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Failed to load dashboard")
     } finally {
@@ -164,6 +175,32 @@ function DashboardContent() {
 
       {!loading && !error && data && (
         <div className="mx-auto max-w-5xl">
+          {/* API Key Missing Banner */}
+          {showKeyBanner && (
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <span className="text-amber-500 text-xl">⚠️</span>
+                <div>
+                  <p className="text-sm font-medium text-amber-900">API Key Missing</p>
+                  <p className="text-xs text-amber-700">
+                    Add your Anthropic API key in Settings to unlock AI features
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <a href="/dashboard/settings"
+                   className="bg-amber-500 text-white text-sm px-4 py-2 rounded-lg hover:bg-amber-600">
+                  Add Key
+                </a>
+                <button 
+                  onClick={() => setShowKeyBanner(false)}
+                  className="text-amber-500 hover:text-amber-700 text-sm px-2">
+                  ✕
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* ── Section 1: Profile Header ────────────────────────────────── */}
           <section className="mb-8 flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-4">

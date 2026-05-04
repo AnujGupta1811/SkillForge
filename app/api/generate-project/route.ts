@@ -1,10 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+import { getUserApiKey } from '@/lib/get-user-api-key'
 
 export async function POST(req: NextRequest) {
     try {
+        let apiKey: string
+        try {
+          apiKey = await getUserApiKey()
+        } catch (e: any) {
+          if (e.message === 'NO_API_KEY') {
+            return NextResponse.json({ 
+              error: 'NO_API_KEY',
+              message: 'Please add your Anthropic API key in Settings to use this feature.'
+            }, { status: 402 })
+          }
+          return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+        }
+        const anthropic = new Anthropic({ apiKey })
+
         const { problem, skill, difficulty } = await req.json()
 
         console.log('[generate-project] Request received:', { title: problem?.title, skill, difficulty })
