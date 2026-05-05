@@ -23,7 +23,9 @@ const statusBadgeStyles: Record<string, { bg: string; color: string }> = {
 
 function getInitials(name: string): string {
   return name
+    .trim()
     .split(" ")
+    .filter(Boolean)
     .map((w) => w[0])
     .join("")
     .toUpperCase()

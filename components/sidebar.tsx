@@ -76,11 +76,11 @@ function SidebarContent({ activeHref }: SidebarProps) {
         setUserName(nameToDisplay)
         setUserRole(profile?.role || null)
         
-        const nameParts = nameToDisplay.split(' ')
+        const nameParts = nameToDisplay.trim().split(' ').filter(Boolean)
         if (nameParts.length >= 2) {
           setInitials(`${nameParts[0][0]}${nameParts[1][0]}`.toUpperCase())
         } else {
-          setInitials(nameToDisplay.substring(0, 2).toUpperCase())
+          setInitials(nameParts[0]?.substring(0, 2).toUpperCase() ?? '')
         }
       }
     }

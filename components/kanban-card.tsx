@@ -23,7 +23,9 @@ export function statusToColumn(status: string): ColumnId {
 
 function getInitials(name: string): string {
   return name
+    .trim()
     .split(" ")
+    .filter(Boolean)
     .map((w) => w[0])
     .join("")
     .toUpperCase()
