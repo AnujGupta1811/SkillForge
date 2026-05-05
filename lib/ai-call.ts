@@ -15,17 +15,26 @@ export async function callAI(
 
   if (config.provider === 'gemini') {
     const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${config.apiKey}`,
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent',
       {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': config.apiKey
+        },
         body: JSON.stringify({
           contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { maxOutputTokens: 2000 }
+          generationConfig: { maxOutputTokens: 8192 }
         })
       }
     )
     const data = await res.json()
+
+    if (!res.ok) {
+      console.error('[callAI] Gemini error:', data)
+      throw new Error(data.error?.message || 'Gemini API call failed')
+    }
+
     return data.candidates?.[0]?.content?.parts?.[0]?.text || ''
   }
 

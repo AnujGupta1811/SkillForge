@@ -26,25 +26,38 @@ export async function POST(req: NextRequest) {
   }
 
   if (provider === 'gemini') {
-    if (!api_key.startsWith('AIza')) {
-      return NextResponse.json({ error: 'Invalid API key. Gemini keys start with AIza' }, { status: 400 })
+    if (!api_key || !api_key.startsWith('AIza')) {
+      return NextResponse.json({
+        error: 'Invalid API key. Gemini keys start with AIza'
+      }, { status: 400 })
     }
 
     try {
       const testRes = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${api_key}`,
+        'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent',
         {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            'x-goog-api-key': api_key
+          },
           body: JSON.stringify({
             contents: [{ parts: [{ text: 'Hi' }] }]
           })
         }
       )
+
+      console.log('[api-key] Gemini test status:', testRes.status)
+
       if (!testRes.ok) {
-        return NextResponse.json({ error: 'Invalid Gemini API key' }, { status: 400 })
+        const errData = await testRes.json()
+        console.error('[api-key] Gemini test error:', errData)
+        return NextResponse.json({
+          error: 'API key validation failed: ' + (errData.error?.message || 'Invalid key')
+        }, { status: 400 })
       }
     } catch (e) {
+      console.error('[api-key] Gemini test exception:', e)
       return NextResponse.json({ error: 'Could not validate Gemini API key' }, { status: 400 })
     }
 

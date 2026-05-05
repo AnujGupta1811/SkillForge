@@ -202,7 +202,7 @@ export default function SettingsPage() {
                         FREE TIER
                       </span>
                     </div>
-                    <p className="text-xs font-mono text-slate-500 mb-1">gemini-2.0-flash</p>
+                    <p className="text-xs font-mono text-slate-500 mb-1">gemini-2.5-flash</p>
                     <p className="text-sm text-slate-700 font-medium mb-1">Free tier available. Great for getting started.</p>
                     <p className="text-xs text-slate-500 mb-3">Free tier: 15 req/min, 1500/day. No credit card needed.</p>
                     <a

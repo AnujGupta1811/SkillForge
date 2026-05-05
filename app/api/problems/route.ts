@@ -90,8 +90,14 @@ Map the difficulty to title case: "Beginner", "Intermediate", or "Advanced".`
     const raw = await callAI(config, prompt)
     console.log('[/api/problems] AI response received')
 
-    const clean = raw.replace(/```json|```/g, '').trim()
-    const problems = JSON.parse(clean)
+    const clean = raw.replace(/```json\n?|```/g, '').trim()
+    let problems
+    try {
+      problems = JSON.parse(clean)
+    } catch (parseErr) {
+      console.error('[/api/problems] JSON parse failed. Raw response:', raw)
+      throw parseErr
+    }
 
     console.log(`[/api/problems] Parsed ${problems.length} problems from AI`)
 
