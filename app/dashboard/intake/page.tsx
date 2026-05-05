@@ -53,7 +53,7 @@ export default function IntakePage() {
 
       if (!res.ok) {
         if (data.error === 'NO_API_KEY') {
-          setError('You need to add your Anthropic API key before using AI features.')
+          setError('You need to add an API key before using AI features.')
           setShowSettingsPrompt(true)
           setIsLoading(false)
           return
@@ -170,9 +170,12 @@ export default function IntakePage() {
                         <div className="bg-violet-50 border border-violet-200 rounded-xl p-4 flex items-center justify-between">
                           <div>
                             <p className="text-sm font-medium text-violet-900">API Key Required</p>
-                            <p className="text-xs text-violet-700">Add your Anthropic API key to start finding problems</p>
+                            <p className="text-xs text-violet-700">
+                              Add your Anthropic or Gemini API key in Settings to use AI features.
+                              Gemini has a free tier — no credit card needed.
+                            </p>
                           </div>
-                          <a 
+                          <a
                             href="/dashboard/settings"
                             className="bg-violet-600 text-white text-sm px-4 py-2 rounded-lg hover:bg-violet-700"
                           >

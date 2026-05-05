@@ -2,15 +2,14 @@ import { NextRequest, NextResponse } from 'next/server'
 import { fetchGithubIssues } from '@/lib/apis/github'
 import { fetchHackerNews } from '@/lib/apis/hackernews'
 import { fetchStackOverflow } from '@/lib/apis/stackoverflow'
-import Anthropic from '@anthropic-ai/sdk'
-import { getUserApiKey } from '@/lib/get-user-api-key'
+import { getUserAIConfig } from '@/lib/get-user-api-key'
+import { callAI } from '@/lib/ai-call'
 
 export async function POST(req: NextRequest) {
   try {
     const { skill, subtopics, difficulty, sources } = await req.json()
     console.log('[/api/problems] Request:', { skill, subtopics, difficulty, sources })
 
-    // Fetch from all selected sources in parallel
     const fetchers: { name: string; promise: Promise<any> }[] = []
     if (sources.includes('github'))
       fetchers.push({ name: 'github', promise: fetchGithubIssues(skill, subtopics) })
@@ -32,7 +31,7 @@ export async function POST(req: NextRequest) {
     const rawProblems = results
       .filter(r => r.status === 'fulfilled')
       .flatMap((r: any) => r.value)
-      .slice(0, 20) // Cap before sending to Claude
+      .slice(0, 20)
 
     console.log(`[/api/problems] Total raw problems: ${rawProblems.length}`)
 
@@ -40,9 +39,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ problems: [] })
     }
 
-    // Pass to Claude to rank, filter, and summarise
     const prompt = `You are a technical problem curator for software engineers.
-  
+
 The engineer wants to practice: ${skill}
 Subtopics: ${subtopics.join(', ')}
 Difficulty level: ${difficulty}
@@ -74,37 +72,29 @@ Use "aiSummary" (camelCase) for the AI explanation field.
 Use human-readable source names: "GitHub Issues", "Hacker News", "Stack Overflow".
 Map the difficulty to title case: "Beginner", "Intermediate", or "Advanced".`
 
-    console.log('[/api/problems] Calling Claude API...')
+    console.log('[/api/problems] Calling AI API...')
 
-    let apiKey: string
+    let config: { provider: string; apiKey: string }
     try {
-      apiKey = await getUserApiKey()
+      config = await getUserAIConfig()
     } catch (e: any) {
       if (e.message === 'NO_API_KEY') {
-        return NextResponse.json({ 
+        return NextResponse.json({
           error: 'NO_API_KEY',
-          message: 'Please add your Anthropic API key in Settings to use this feature.'
+          message: 'Please add your Anthropic or Gemini API key in Settings to use this feature.'
         }, { status: 402 })
       }
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const anthropic = new Anthropic({ apiKey })
-    const message = await anthropic.messages.create({
-      model: 'claude-sonnet-4-5',
-      max_tokens: 2000,
-      messages: [{ role: 'user', content: prompt }],
-    })
+    const raw = await callAI(config, prompt)
+    console.log('[/api/problems] AI response received')
 
-    console.log('[/api/problems] Claude response received')
-
-    const raw = (message.content[0] as any).text
     const clean = raw.replace(/```json|```/g, '').trim()
     const problems = JSON.parse(clean)
 
-    console.log(`[/api/problems] Parsed ${problems.length} problems from Claude`)
+    console.log(`[/api/problems] Parsed ${problems.length} problems from AI`)
 
-    // Save to Supabase for caching (non-blocking, don't fail the response)
     try {
       const { createClient } = await import('@/lib/supabase/server')
       const supabase = await createClient()

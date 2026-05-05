@@ -137,7 +137,7 @@ function DashboardContent() {
       if (!userIdParam) {
         const keyRes = await fetch('/api/user/api-key')
         const keyData = await keyRes.json()
-        if (keyData.has_key === false) {
+        if (!keyData.anthropic?.has_key && !keyData.gemini?.has_key) {
           setShowKeyBanner(true)
         }
       }
@@ -183,7 +183,8 @@ function DashboardContent() {
                 <div>
                   <p className="text-sm font-medium text-amber-900">API Key Missing</p>
                   <p className="text-xs text-amber-700">
-                    Add your Anthropic API key in Settings to unlock AI features
+                    Add your Anthropic or Gemini API key in Settings to unlock AI features.
+                    Gemini offers a free tier with no credit card required.
                   </p>
                 </div>
               </div>

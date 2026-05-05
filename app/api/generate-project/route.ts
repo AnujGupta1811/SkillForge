@@ -1,23 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server'
-import Anthropic from '@anthropic-ai/sdk'
-
-import { getUserApiKey } from '@/lib/get-user-api-key'
+import { getUserAIConfig } from '@/lib/get-user-api-key'
+import { callAI } from '@/lib/ai-call'
 
 export async function POST(req: NextRequest) {
     try {
-        let apiKey: string
+        let config: { provider: string; apiKey: string }
         try {
-          apiKey = await getUserApiKey()
+          config = await getUserAIConfig()
         } catch (e: any) {
           if (e.message === 'NO_API_KEY') {
-            return NextResponse.json({ 
+            return NextResponse.json({
               error: 'NO_API_KEY',
-              message: 'Please add your Anthropic API key in Settings to use this feature.'
+              message: 'Please add your Anthropic or Gemini API key in Settings to use this feature.'
             }, { status: 402 })
           }
           return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
         }
-        const anthropic = new Anthropic({ apiKey })
 
         const { problem, skill, difficulty } = await req.json()
 
@@ -59,17 +57,12 @@ Rules:
 - Each feature must have a "type" field: one of "Backend", "Frontend", "API", "Testing", "DevOps", or "Feature"
 - Make it genuinely useful, not a toy project`
 
-        console.log('[generate-project] Calling Anthropic API...')
+        console.log('[generate-project] Calling AI API...')
 
-        const message = await anthropic.messages.create({
-            model: 'claude-sonnet-4-5',
-            max_tokens: 1500,
-            messages: [{ role: 'user', content: prompt }],
-        })
+        const raw = await callAI(config, prompt)
 
-        console.log('[generate-project] Anthropic response received')
+        console.log('[generate-project] AI response received')
 
-        const raw = (message.content[0] as any).text
         const clean = raw.replace(/```json|```/g, '').trim()
 
         let project
