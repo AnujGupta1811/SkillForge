@@ -4,7 +4,7 @@ import type React from "react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Suspense, useEffect, useState } from "react"
-import { ArrowLeft, Hammer, Mail } from "lucide-react"
+import { ArrowLeft, Hammer } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -46,8 +46,6 @@ function AuthContent() {
   const [fullName, setFullName] = useState("")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
-  const [message, setMessage] = useState("")
-  const [showVerificationState, setShowVerificationState] = useState(false)
 
   useEffect(() => {
     const mode = params.get("mode") === "signup" ? "signup" : "signin"
@@ -70,7 +68,6 @@ function AuthContent() {
     }
     setLoading(true)
     setError("")
-    setMessage("")
     const { error } = await supabase.auth.signUp({
       email,
       password,
@@ -82,8 +79,7 @@ function AuthContent() {
     if (error) {
       setError(error.message)
     } else {
-      setMessage('Check your email and click the verification link to activate your account.')
-      setShowVerificationState(true)
+      router.push('/dashboard')
     }
     setLoading(false)
   }
@@ -92,14 +88,9 @@ function AuthContent() {
     e.preventDefault()
     setLoading(true)
     setError("")
-    setMessage("")
     const { error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) {
-      if (error.message.includes('Email not confirmed')) {
-        setError('Please verify your email first. Check your inbox for the verification link.')
-      } else {
-        setError(error.message)
-      }
+      setError(error.message)
     } else {
       router.push("/dashboard")
     }
@@ -136,36 +127,8 @@ function AuthContent() {
         </div>
 
         {error && <div className="mb-4 rounded-md bg-destructive/10 p-3 text-sm text-destructive">{error}</div>}
-        {message && <div className="mb-4 rounded-md bg-accent/10 p-3 text-sm text-accent">{message}</div>}
 
-        {showVerificationState ? (
-          <div className="flex flex-col items-center gap-6 py-4 text-center">
-            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-accent/10 text-accent">
-              <Mail className="h-8 w-8" />
-            </div>
-            <div className="flex flex-col gap-2">
-              <h2 className="text-2xl font-semibold tracking-tight text-foreground">Check your email</h2>
-              <p className="text-muted-foreground">
-                We sent a verification link to <span className="font-medium text-foreground">{email}</span>.
-                Click it to activate your account.
-              </p>
-            </div>
-            <p className="text-sm text-muted-foreground">
-              Didn't receive it? Check your spam folder.
-            </p>
-            <Button
-              variant="outline"
-              className="mt-2 w-full"
-              onClick={() => {
-                setShowVerificationState(false)
-                setTab("signin")
-              }}
-            >
-              Back to Sign In
-            </Button>
-          </div>
-        ) : (
-          <Tabs value={tab} onValueChange={(v: string) => setTab(v as "signin" | "signup")} className="w-full">
+        <Tabs value={tab} onValueChange={(v: string) => setTab(v as "signin" | "signup")} className="w-full">
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="signin">Sign in</TabsTrigger>
               <TabsTrigger value="signup">Sign up</TabsTrigger>
@@ -291,7 +254,6 @@ function AuthContent() {
               </form>
             </TabsContent>
           </Tabs>
-        )}
       </CardContent>
     </Card>
   )
