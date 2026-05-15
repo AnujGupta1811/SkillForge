@@ -39,7 +39,7 @@ export async function GET(request: Request) {
     // ── 2. Target Profile ───────────────────────────────────────────────────────
     const { data: profile, error: profileError } = await adminClient
       .from('users')
-      .select('id, full_name, avatar_url, email, points, role, company_domain')
+      .select('id, full_name, avatar_url, email, points, role, company_domain, email_verified_at')
       .eq('id', targetUserId)
       .single()
 

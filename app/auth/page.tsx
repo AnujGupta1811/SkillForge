@@ -46,6 +46,7 @@ function AuthContent() {
   const [fullName, setFullName] = useState("")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
+  const [emailSent, setEmailSent] = useState(false)
 
   useEffect(() => {
     const mode = params.get("mode") === "signup" ? "signup" : "signin"
@@ -58,6 +59,12 @@ function AuthContent() {
     if (errorParam === 'auth_failed') {
       setError('Authentication failed. Please try again.')
     }
+    if (errorParam === 'invalid_token') {
+      setError('This verification link is invalid. Please sign up again.')
+    }
+    if (errorParam === 'token_expired') {
+      setError('This verification link has expired. Sign in to request a new one.')
+    }
   }, [params])
 
   async function handleSignUp(e: React.FormEvent) {
@@ -68,18 +75,20 @@ function AuthContent() {
     }
     setLoading(true)
     setError("")
-    const { error } = await supabase.auth.signUp({
+    const { data: signUpData, error } = await supabase.auth.signUp({
       email,
       password,
-      options: {
-        data: { full_name: fullName },
-        emailRedirectTo: `${location.origin}/auth/callback`,
-      },
+      options: { data: { full_name: fullName } },
     })
     if (error) {
       setError(error.message)
-    } else {
-      router.push('/dashboard')
+    } else if (signUpData.user) {
+      await fetch('/api/auth/send-verification', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: signUpData.user.id, email }),
+      })
+      setEmailSent(true)
     }
     setLoading(false)
   }
@@ -127,6 +136,20 @@ function AuthContent() {
         </div>
 
         {error && <div className="mb-4 rounded-md bg-destructive/10 p-3 text-sm text-destructive">{error}</div>}
+
+        {emailSent ? (
+          <div className="flex flex-col items-center gap-4 py-4 text-center">
+            <div className="rounded-md bg-green-500/10 p-4 text-sm text-green-700 dark:text-green-400">
+              Check your inbox — we sent a confirmation link to <strong>{email}</strong>. Click it to activate your account.
+            </div>
+            <button
+              className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
+              onClick={() => { setEmailSent(false); setTab("signin") }}
+            >
+              Back to sign in
+            </button>
+          </div>
+        ) : (
 
         <Tabs value={tab} onValueChange={(v: string) => setTab(v as "signin" | "signup")} className="w-full">
             <TabsList className="grid w-full grid-cols-2">
@@ -254,6 +277,7 @@ function AuthContent() {
               </form>
             </TabsContent>
           </Tabs>
+        )}
       </CardContent>
     </Card>
   )

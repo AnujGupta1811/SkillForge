@@ -31,6 +31,7 @@ interface DashboardData {
     points: number
     role: string
     company_domain: string
+    email_verified_at: string | null
   }
   stats: {
     projects_created: number
@@ -118,6 +119,8 @@ function DashboardContent() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [showKeyBanner, setShowKeyBanner] = useState(false)
+  const [showVerifyBanner, setShowVerifyBanner] = useState(false)
+  const [showVerifiedSuccess, setShowVerifiedSuccess] = useState(false)
 
   async function loadDashboard() {
     setLoading(true)
@@ -140,6 +143,9 @@ function DashboardContent() {
         if (!keyData.anthropic?.has_key && !keyData.gemini?.has_key) {
           setShowKeyBanner(true)
         }
+        if (!json.profile.email_verified_at) {
+          setShowVerifyBanner(true)
+        }
       }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Failed to load dashboard")
@@ -150,6 +156,9 @@ function DashboardContent() {
 
   useEffect(() => {
     loadDashboard()
+    if (searchParams.get('verified') === 'true') {
+      setShowVerifiedSuccess(true)
+    }
   }, [userIdParam])
 
   return (
@@ -175,6 +184,31 @@ function DashboardContent() {
 
       {!loading && !error && data && (
         <div className="mx-auto max-w-5xl">
+          {/* Email Verified Success */}
+          {showVerifiedSuccess && (
+            <div className="bg-green-50 border border-green-200 rounded-xl p-4 flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <span className="text-green-500 text-xl">✓</span>
+                <p className="text-sm font-medium text-green-900">Email verified — your account is fully active.</p>
+              </div>
+              <button onClick={() => setShowVerifiedSuccess(false)} className="text-green-500 hover:text-green-700 text-sm px-2">✕</button>
+            </div>
+          )}
+
+          {/* Email Verification Banner */}
+          {showVerifyBanner && !showVerifiedSuccess && (
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <span className="text-blue-500 text-xl">✉</span>
+                <div>
+                  <p className="text-sm font-medium text-blue-900">Please verify your email</p>
+                  <p className="text-xs text-blue-700">Check your inbox for the confirmation link we sent when you signed up.</p>
+                </div>
+              </div>
+              <button onClick={() => setShowVerifyBanner(false)} className="text-blue-500 hover:text-blue-700 text-sm px-2">✕</button>
+            </div>
+          )}
+
           {/* API Key Missing Banner */}
           {showKeyBanner && (
             <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-center justify-between mb-6">
