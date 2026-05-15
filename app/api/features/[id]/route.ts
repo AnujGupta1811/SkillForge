@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, createAdminClient } from '@/lib/supabase/server'
+import { sendEmail } from '@/lib/emails/send'
+import { featureInReviewEmail, featureCompletedEmail } from '@/lib/emails/templates'
 
 export async function PATCH(
   req: NextRequest,
@@ -94,11 +96,33 @@ export async function PATCH(
       return NextResponse.json({ error: updateError.message }, { status: 500 })
     }
 
-    // If status becomes 'done', award 20 points to the assigned user
+    const adminClient = createAdminClient()
+
+    // Notify lead engineer when a feature is submitted for review
+    if (status === 'in_review' && project?.created_by && project.created_by !== user.id) {
+      const [{ data: contributor }, { data: lead }, { data: projectData }] = await Promise.all([
+        adminClient.from('users').select('full_name').eq('id', user.id).single(),
+        adminClient.from('users').select('email, full_name').eq('id', project.created_by).single(),
+        adminClient.from('projects').select('name').eq('id', feature.project_id).single(),
+      ])
+      if (lead?.email) {
+        await sendEmail({
+          to: lead.email,
+          subject: `Feature ready for review: ${updated.title} — ${projectData?.name ?? ''}`,
+          html: featureInReviewEmail({
+            leadName: lead.full_name ?? 'there',
+            contributorName: contributor?.full_name ?? 'A contributor',
+            featureTitle: updated.title,
+            projectName: projectData?.name ?? 'the project',
+          }),
+        })
+      }
+    }
+
+    // Award points and notify contributor when feature is marked done
     if (status === 'done' && (feature.assigned_to || assigned_to)) {
-      const adminClient = createAdminClient()
       const awardUserId = feature.assigned_to || assigned_to
-      
+
       const { error: rpcError } = await adminClient.rpc('increment_points', {
         user_id: awardUserId,
         amount: 20,
@@ -115,9 +139,26 @@ export async function PATCH(
         },
       })
       if (insertError) console.error('[features/id] point_events insert error:', insertError)
-    }
 
-    const updatedFeature = updated
+      // Email the contributor — skip if lead marked their own feature done
+      if (project?.created_by && awardUserId !== project.created_by) {
+        const [{ data: contributor }, { data: projectData }] = await Promise.all([
+          adminClient.from('users').select('email, full_name').eq('id', awardUserId).single(),
+          adminClient.from('projects').select('name').eq('id', feature.project_id).single(),
+        ])
+        if (contributor?.email) {
+          await sendEmail({
+            to: contributor.email,
+            subject: `Your feature was marked done: ${updated.title} — ${projectData?.name ?? ''}`,
+            html: featureCompletedEmail({
+              contributorName: contributor.full_name ?? 'there',
+              featureTitle: updated.title,
+              projectName: projectData?.name ?? 'the project',
+            }),
+          })
+        }
+      }
+    }
 
     return NextResponse.json(updated)
   } catch (err: unknown) {

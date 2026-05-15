@@ -16,11 +16,15 @@ export async function sendEmail({
   to: string;
   subject: string;
   html: string;
-}) {
-  await transporter.sendMail({
-    from: `SkillForge <${process.env.GMAIL_USER}>`,
-    to,
-    subject,
-    html,
-  });
+}): Promise<void> {
+  try {
+    await transporter.sendMail({
+      from: `SkillForge <${process.env.GMAIL_USER}>`,
+      to,
+      subject,
+      html,
+    });
+  } catch (err) {
+    console.error('[sendEmail] Failed to send to', to, '-', err instanceof Error ? err.message : err);
+  }
 }

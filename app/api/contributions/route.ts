@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createAdminClient } from '@/lib/supabase/server'
+import { sendEmail } from '@/lib/emails/send'
+import { contributionRequestEmail } from '@/lib/emails/templates'
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
@@ -52,6 +54,34 @@ export async function POST(req: NextRequest) {
   }
 
   console.log('[contributions POST] Success:', data)
+
+  // Notify the lead engineer about the new contribution request
+  const admin = createAdminClient()
+  const [
+    { data: engineer },
+    { data: feature },
+    { data: project },
+  ] = await Promise.all([
+    admin.from('users').select('full_name').eq('id', user.id).single(),
+    admin.from('features').select('title').eq('id', feature_id).single(),
+    admin.from('projects').select('name, created_by').eq('id', project_id).single(),
+  ])
+
+  if (project?.created_by && project.created_by !== user.id) {
+    const { data: lead } = await admin.from('users').select('email, full_name').eq('id', project.created_by).single()
+    if (lead?.email) {
+      await sendEmail({
+        to: lead.email,
+        subject: `New contribution request: ${feature?.title ?? 'a feature'} — ${project.name}`,
+        html: contributionRequestEmail({
+          leadName: lead.full_name ?? 'there',
+          engineerName: engineer?.full_name ?? 'An engineer',
+          featureTitle: feature?.title ?? 'Unknown Feature',
+          projectName: project.name ?? 'Unknown Project',
+        }),
+      })
+    }
+  }
 
   return NextResponse.json({ contribution: data })
 }

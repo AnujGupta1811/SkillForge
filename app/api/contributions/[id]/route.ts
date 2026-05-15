@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, createAdminClient } from '@/lib/supabase/server'
+import { sendEmail } from '@/lib/emails/send'
+import { contributionApprovedEmail } from '@/lib/emails/templates'
 
 export async function PATCH(
   req: NextRequest,
@@ -115,6 +117,23 @@ export async function PATCH(
         },
       })
       if (insertError) console.error('[contributions/id] point_events insert error:', insertError)
+
+      // Notify the engineer their contribution was approved
+      const [{ data: engineer }, { data: projectData }] = await Promise.all([
+        adminClient.from('users').select('email, full_name').eq('id', contribution.user_id).single(),
+        adminClient.from('projects').select('name').eq('id', contribution.project_id).single(),
+      ])
+      if (engineer?.email) {
+        await sendEmail({
+          to: engineer.email,
+          subject: `Contribution approved: ${updatedFeature?.title ?? 'Feature'} — ${projectData?.name ?? ''}`,
+          html: contributionApprovedEmail({
+            engineerName: engineer.full_name ?? 'there',
+            featureTitle: updatedFeature?.title ?? 'the feature',
+            projectName: projectData?.name ?? 'the project',
+          }),
+        })
+      }
 
       return NextResponse.json({ success: true, action, feature: updatedFeature })
     } else {
