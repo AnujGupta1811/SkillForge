@@ -64,6 +64,8 @@ export async function GET(
         status,
         assigned_to,
         created_at,
+        review_notes,
+        review_comments,
         assigned_user:users!features_assigned_to_fkey (
           id,
           full_name,

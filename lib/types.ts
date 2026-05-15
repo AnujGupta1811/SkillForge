@@ -23,6 +23,8 @@ export interface Feature {
   status: FeatureStatus
   assigned_to: string | null
   created_at: string
+  review_notes?: string | null
+  review_comments?: string | null
   // Joined fields
   assigned_user?: {
     id: string

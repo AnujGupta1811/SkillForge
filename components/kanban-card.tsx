@@ -240,6 +240,30 @@ export function KanbanCard({
         </p>
       )}
 
+      {/* Show engineer's review notes to the lead when card is in review */}
+      {column === "in_review" && isLeadEngineer && feature.review_notes && (
+        <div className="rounded-md border border-[#e2e8f0] bg-[#f8fafc] p-2.5">
+          <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-[#94a3b8]">
+            Notes from engineer
+          </p>
+          <p className="text-xs text-[#475569] whitespace-pre-wrap line-clamp-3">
+            {feature.review_notes}
+          </p>
+        </div>
+      )}
+
+      {/* Show lead's change request feedback to the assigned engineer */}
+      {column === "in_progress" && isAssignedToMe && feature.review_comments && (
+        <div className="rounded-md border border-[#fed7aa] bg-[#fff7ed] p-2.5">
+          <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-[#f97316]">
+            Changes requested
+          </p>
+          <p className="text-xs text-[#92400e] whitespace-pre-wrap line-clamp-3">
+            {feature.review_comments}
+          </p>
+        </div>
+      )}
+
       <div
         className="mt-1 flex items-center justify-between gap-2 border-t pt-3"
         style={{ borderColor: "#e2e8f0" }}

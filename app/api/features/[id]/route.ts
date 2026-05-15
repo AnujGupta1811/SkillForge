@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, createAdminClient } from '@/lib/supabase/server'
 import { sendEmail } from '@/lib/emails/send'
-import { featureInReviewEmail, featureCompletedEmail } from '@/lib/emails/templates'
+import { featureInReviewEmail, featureCompletedEmail, featureChangesRequestedEmail } from '@/lib/emails/templates'
 
 export async function PATCH(
   req: NextRequest,
@@ -17,7 +17,7 @@ export async function PATCH(
     }
 
     const body = await req.json()
-    const { status, assigned_to } = body
+    const { status, assigned_to, review_notes, review_comments } = body
     const validStatuses = ['todo', 'in_progress', 'in_review', 'done']
 
     if (status && !validStatuses.includes(status)) {
@@ -59,9 +59,11 @@ export async function PATCH(
     }
 
     // Build the update payload
-    const updatePayload: Record<string, string> = {}
+    const updatePayload: Record<string, string | null> = {}
     if (status) updatePayload.status = status
     if (assigned_to) updatePayload.assigned_to = assigned_to
+    if (review_notes !== undefined) updatePayload.review_notes = review_notes ?? null
+    if (review_comments !== undefined) updatePayload.review_comments = review_comments ?? null
 
     if (Object.keys(updatePayload).length === 0) {
       return NextResponse.json(
@@ -83,6 +85,8 @@ export async function PATCH(
         status,
         assigned_to,
         created_at,
+        review_notes,
+        review_comments,
         assigned_user:users!features_assigned_to_fkey (
           id,
           full_name,
@@ -114,6 +118,34 @@ export async function PATCH(
             contributorName: contributor?.full_name ?? 'A contributor',
             featureTitle: updated.title,
             projectName: projectData?.name ?? 'the project',
+            notes: review_notes ?? null,
+          }),
+        })
+      }
+    }
+
+    // Notify contributor when lead requests changes (in_review → in_progress with comments)
+    if (
+      status === 'in_progress' &&
+      feature.status === 'in_review' &&
+      review_comments &&
+      feature.assigned_to &&
+      project?.created_by &&
+      feature.assigned_to !== project.created_by
+    ) {
+      const [{ data: contributor }, { data: projectData }] = await Promise.all([
+        adminClient.from('users').select('email, full_name').eq('id', feature.assigned_to).single(),
+        adminClient.from('projects').select('name').eq('id', feature.project_id).single(),
+      ])
+      if (contributor?.email) {
+        await sendEmail({
+          to: contributor.email,
+          subject: `Changes requested on: ${updated.title} — ${projectData?.name ?? ''}`,
+          html: featureChangesRequestedEmail({
+            contributorName: contributor.full_name ?? 'there',
+            featureTitle: updated.title,
+            projectName: projectData?.name ?? 'the project',
+            comments: review_comments,
           }),
         })
       }

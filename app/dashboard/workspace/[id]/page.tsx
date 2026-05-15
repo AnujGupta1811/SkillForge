@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import { KanbanBoard } from "@/components/kanban-board"
 import { SubmitReviewModal } from "@/components/submit-review-modal"
+import { RequestChangesModal } from "@/components/request-changes-modal"
 import { ContributionRequestsPanel, type ContributionRequest } from "@/components/contribution-requests-panel"
 import { createClient } from "@/lib/supabase/client"
 import type { Feature, ProjectDetail } from "@/lib/types"
@@ -118,6 +119,7 @@ export default function WorkspacePage({
   const [currentUserId, setCurrentUserId] = useState<string>("")
 
   const [submitFeature, setSubmitFeature] = useState<Feature | null>(null)
+  const [requestChangesFeature, setRequestChangesFeature] = useState<Feature | null>(null)
 
   // Contribution requests (for lead engineer panel)
   const [contributionRequests, setContributionRequests] = useState<ContributionRequest[]>([])
@@ -313,19 +315,18 @@ export default function WorkspacePage({
     }
   }
 
-  // Handle request changes (lead engineer) — move back to in_progress
-  async function handleRequestChanges(feature: Feature) {
-    updateFeatureLocally(feature.id, { status: "in_progress" })
-    try {
-      await fetch(`/api/features/${feature.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "in_progress" }),
-      })
-    } catch (err) {
-      console.error("Failed to request changes:", err)
-      updateFeatureLocally(feature.id, { status: feature.status })
-    }
+  // Handle request changes (lead engineer) — opens modal to collect feedback
+  function handleRequestChanges(feature: Feature) {
+    setRequestChangesFeature(feature)
+  }
+
+  // Called by modal after successful PATCH
+  function handleConfirmRequestChanges(feature: Feature, comments: string) {
+    updateFeatureLocally(feature.id, {
+      status: "in_progress",
+      review_comments: comments,
+    })
+    setRequestChangesFeature(null)
   }
 
   // Contribution panel: Approve a request
@@ -642,6 +643,13 @@ export default function WorkspacePage({
         open={submitFeature !== null}
         onOpenChange={(o) => !o && setSubmitFeature(null)}
         onConfirm={handleConfirmSubmit}
+      />
+
+      <RequestChangesModal
+        feature={requestChangesFeature}
+        open={requestChangesFeature !== null}
+        onOpenChange={(o) => !o && setRequestChangesFeature(null)}
+        onConfirm={handleConfirmRequestChanges}
       />
     </div>
   )

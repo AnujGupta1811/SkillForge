@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, createAdminClient } from '@/lib/supabase/server'
 import { sendEmail } from '@/lib/emails/send'
-import { contributionApprovedEmail } from '@/lib/emails/templates'
+import { contributionApprovedEmail, contributionRejectedEmail } from '@/lib/emails/templates'
 
 export async function PATCH(
   req: NextRequest,
@@ -137,7 +137,7 @@ export async function PATCH(
 
       return NextResponse.json({ success: true, action, feature: updatedFeature })
     } else {
-      // Reject: just update status
+      // Reject: update status
       const { error: updateError } = await supabase
         .from('contributions')
         .update({ status: 'rejected' })
@@ -146,6 +146,31 @@ export async function PATCH(
       if (updateError) {
         console.error('[contributions/id] Update error:', updateError)
         return NextResponse.json({ error: updateError.message }, { status: 500 })
+      }
+
+      // Notify the engineer their request was declined
+      const adminClient = createAdminClient()
+      const [
+        { data: engineer },
+        { data: featureData },
+        { data: projectData },
+      ] = await Promise.all([
+        adminClient.from('users').select('email, full_name').eq('id', contribution.user_id).single(),
+        contribution.feature_id
+          ? adminClient.from('features').select('title').eq('id', contribution.feature_id).single()
+          : Promise.resolve({ data: null }),
+        adminClient.from('projects').select('name').eq('id', contribution.project_id).single(),
+      ])
+      if (engineer?.email) {
+        await sendEmail({
+          to: engineer.email,
+          subject: `Contribution request declined: ${featureData?.title ?? 'Feature'} — ${projectData?.name ?? ''}`,
+          html: contributionRejectedEmail({
+            engineerName: engineer.full_name ?? 'there',
+            featureTitle: featureData?.title ?? 'the feature',
+            projectName: projectData?.name ?? 'the project',
+          }),
+        })
       }
 
       return NextResponse.json({ success: true, action })
